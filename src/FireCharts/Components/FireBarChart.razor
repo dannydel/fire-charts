@@ -1,0 +1,187 @@
+@namespace FireCharts.Components
+@typeparam TItem
+@using System.Globalization
+@using Microsoft.AspNetCore.Components.Web
+@using FireCharts.Models
+
+<ChartSurface Title="@Title"
+              Description="@Description"
+              Width="@Width"
+              Height="@Height"
+              Responsive="@Responsive"
+              HostCssClass="fire-bar-chart-host"
+              SvgCssClass="fire-bar-chart">
+    <ChildContent Context="surface">
+        @{
+            UpdateSurfaceSize(surface);
+        }
+        @if (Points.Count == 0)
+        {
+            @if (EmptyStateTemplate is not null)
+            {
+                @EmptyStateTemplate
+            }
+            else
+            {
+                <SvgText X="@(surface.Width / 2)"
+                         Y="@(surface.Height / 2)"
+                         TextAnchor="middle"
+                         CssClass="empty-state"
+                         Content="No data" />
+            }
+        }
+        else
+        {
+            @if (ShowGridLines)
+            {
+                <g class="grid-lines">
+                    @for (var i = 0; i <= SafeGridLineCount; i++)
+                    {
+                        var fraction = (double)i / SafeGridLineCount;
+
+                        if (Horizontal)
+                        {
+                            var x = ChartAreaLeft + fraction * ChartAreaWidth;
+                            <line x1="@Fmt(x)" y1="@Fmt(ChartAreaTop)"
+                                  x2="@Fmt(x)" y2="@Fmt(ChartAreaBottom)"
+                                  class="grid-line" />
+                        }
+                        else
+                        {
+                            var y = ChartAreaBottom - fraction * ChartAreaHeight;
+                            <line x1="@Fmt(ChartAreaLeft)" y1="@Fmt(y)"
+                                  x2="@Fmt(ChartAreaRight)" y2="@Fmt(y)"
+                                  class="grid-line" />
+                        }
+                    }
+                </g>
+            }
+
+            <g class="axes">
+                <line x1="@Fmt(ChartAreaLeft)" y1="@Fmt(ChartAreaTop)"
+                      x2="@Fmt(ChartAreaLeft)" y2="@Fmt(ChartAreaBottom)"
+                      class="axis-line" />
+                <line x1="@Fmt(ChartAreaLeft)" y1="@Fmt(ChartAreaBottom)"
+                      x2="@Fmt(ChartAreaRight)" y2="@Fmt(ChartAreaBottom)"
+                      class="axis-line" />
+            </g>
+
+            @if (ShowAxisLabels)
+            {
+                <g class="value-axis-labels">
+                    @for (var i = 0; i <= SafeGridLineCount; i++)
+                    {
+                        var fraction = (double)i / SafeGridLineCount;
+                        var value = ComputedMaxValue * fraction;
+
+                        if (Horizontal)
+                        {
+                            var x = ChartAreaLeft + fraction * ChartAreaWidth;
+                            <SvgText X="@x" Y="@(ChartAreaBottom + 20)"
+                                     CssClass="axis-label" TextAnchor="middle"
+                                     Content="@value.ToString(ValueFormat, CultureInfo.InvariantCulture)" />
+                        }
+                        else
+                        {
+                            var y = ChartAreaBottom - fraction * ChartAreaHeight;
+                            <SvgText X="@(ChartAreaLeft - 8)" Y="@y"
+                                     CssClass="axis-label" TextAnchor="end" DominantBaseline="middle"
+                                     Content="@value.ToString(ValueFormat, CultureInfo.InvariantCulture)" />
+                        }
+                    }
+                </g>
+
+                <g class="category-axis-labels">
+                    @foreach (var point in Points)
+                    {
+                        if (Horizontal)
+                        {
+                            <SvgText X="@(ChartAreaLeft - 8)" Y="@(point.Rect.Y + point.Rect.Height / 2)"
+                                     CssClass="axis-label" TextAnchor="end" DominantBaseline="middle"
+                                     Content="@point.Label" />
+                        }
+                        else
+                        {
+                            <SvgText X="@(point.Rect.X + point.Rect.Width / 2)" Y="@(ChartAreaBottom + 20)"
+                                     CssClass="axis-label" TextAnchor="middle"
+                                     Content="@point.Label" />
+                        }
+                    }
+                </g>
+            }
+
+            <g class="bar-series" role="list" aria-label="@Title">
+                @foreach (var point in Points)
+                {
+                    var fill = point.Fill;
+                    var hover = point.HoverFill;
+                    var pointClasses = GetPointClasses(point);
+                    <g @key="point.Key"
+                       class="@pointClasses"
+                       role="listitem"
+                       tabindex="0"
+                       aria-label="@point.AccessibleLabel"
+                       aria-selected="@point.IsSelected"
+                       @onmouseover="() => HandleHoverAsync(point)"
+                       @onmouseout="() => HandleHoverLeaveAsync(point)"
+                       @onfocus="() => HandleFocusAsync(point)"
+                       @onblur="() => HandleBlurAsync(point)"
+                       @onclick="() => HandleSelectAsync(point)"
+                       @onkeydown="(args) => HandleKeyDownAsync(args, point)">
+                        <rect class="bar-rect"
+                              x="@Fmt(point.Rect.X)"
+                              y="@Fmt(point.Rect.Y)"
+                              width="@Fmt(point.Rect.Width)"
+                              height="@Fmt(point.Rect.Height)"
+                              rx="@Fmt(CornerRadius)"
+                              ry="@Fmt(CornerRadius)"
+                              style="--bar-color: @fill; --bar-hover-color: @hover">
+                            <title>@point.AccessibleLabel</title>
+                        </rect>
+
+                        @if (ShowValueLabels)
+                        {
+                            @if (PointValueTemplate is not null)
+                            {
+                                @PointValueTemplate(point)
+                            }
+                            else if (Horizontal)
+                            {
+                                <SvgText X="@(point.Rect.X + point.Rect.Width + 6)"
+                                         Y="@(point.Rect.Y + point.Rect.Height / 2)"
+                                         DominantBaseline="middle"
+                                         CssClass="bar-value"
+                                         Content="@point.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)" />
+                            }
+                            else
+                            {
+                                <SvgText X="@(point.Rect.X + point.Rect.Width / 2)"
+                                         Y="@(point.Rect.Y - 6)"
+                                         TextAnchor="middle"
+                                         CssClass="bar-value"
+                                         Content="@point.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)" />
+                            }
+                        }
+                    </g>
+                }
+            </g>
+        }
+    </ChildContent>
+    <OverlayContent>
+        @if (ShowTooltip && HoveredPoint is not null)
+        {
+            <div class="chart-tooltip"
+                 style="@GetTooltipStyle(HoveredPoint)">
+                @if (TooltipTemplate is not null)
+                {
+                    @TooltipTemplate(HoveredPoint)
+                }
+                else
+                {
+                    <div class="tooltip-label">@HoveredPoint.Label</div>
+                    <div class="tooltip-value">@HoveredPoint.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)</div>
+                }
+            </div>
+        }
+    </OverlayContent>
+</ChartSurface>

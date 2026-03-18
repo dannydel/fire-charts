@@ -1,0 +1,16 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="concept2-accent" x1="28" y1="28" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F05F3B"/>
+      <stop offset="1" stop-color="#8A7CF6"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="96" height="96" rx="28" fill="#201A1F"/>
+  <path d="M40 36C40 32.6863 42.6863 30 46 30H82C85.3137 30 88 32.6863 88 36V92C88 95.3137 85.3137 98 82 98H46C42.6863 98 40 95.3137 40 92V36Z" fill="#FFF8F2"/>
+  <path d="M48 86V45" stroke="#201A1F" stroke-width="4" stroke-linecap="round"/>
+  <path d="M48 86H80" stroke="#201A1F" stroke-width="4" stroke-linecap="round"/>
+  <rect x="56" y="63" width="8" height="15" rx="3" fill="#FFB347"/>
+  <rect x="68" y="52" width="8" height="26" rx="3" fill="#F05F3B"/>
+  <rect x="80" y="42" width="8" height="36" rx="3" fill="#8A7CF6"/>
+  <path d="M44 36C44 29.3726 49.3726 24 56 24H72C78.6274 24 84 29.3726 84 36V40H44V36Z" fill="url(#concept2-accent)"/>
+</svg>

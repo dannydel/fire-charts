@@ -1,0 +1,16 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="concept1-bg" x1="22" y1="18" x2="106" y2="110" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB347"/>
+      <stop offset="0.55" stop-color="#F05F3B"/>
+      <stop offset="1" stop-color="#C63D24"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="96" height="96" rx="28" fill="#221A20"/>
+  <rect x="22" y="22" width="84" height="84" rx="24" fill="url(#concept1-bg)"/>
+  <path d="M66.3 34C64.4 41 60.2 46.7 55.2 51.5C50.3 56.2 45.9 60.7 45.9 68.1C45.9 78.1 53.5 85.7 63.3 85.7C74.6 85.7 81.9 76.9 81.9 66.7C81.9 55.2 75.6 47.6 66.3 34Z" fill="#24191F"/>
+  <path d="M62.8 48.1C61.7 52.1 59.4 55.3 56.5 58C53.5 60.8 50.9 63.5 50.9 67.9C50.9 73.9 55.4 78.4 61.4 78.4C68.2 78.4 72.7 73.1 72.7 66.9C72.7 59.7 68.7 54.7 62.8 48.1Z" fill="#FFF4EA"/>
+  <rect x="76" y="53" width="9" height="25" rx="3.5" fill="#FFF8F2"/>
+  <rect x="63" y="60" width="9" height="18" rx="3.5" fill="#FFD9C8"/>
+  <rect x="89" y="44" width="9" height="34" rx="3.5" fill="#FFE8D8"/>
+</svg>

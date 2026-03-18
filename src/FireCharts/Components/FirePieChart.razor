@@ -1,0 +1,168 @@
+@namespace FireCharts.Components
+@typeparam TItem
+@using System.Globalization
+@using Microsoft.AspNetCore.Components.Web
+@using FireCharts.Models
+
+<div class="fire-pie-chart-shell @(HasInnerHole ? "fire-pie-chart-shell--donut" : "fire-pie-chart-shell--pie")">
+    <ChartSurface Title="@Title"
+                  Description="@Description"
+                  Width="@Width"
+                  Height="@Height"
+                  Responsive="@Responsive"
+                  HostCssClass="fire-pie-chart-host"
+                  SvgCssClass="fire-pie-chart">
+        <ChildContent Context="surface">
+            @{
+                UpdateSurfaceSize(surface);
+            }
+            @if (Points.Count == 0)
+            {
+                @if (EmptyStateTemplate is not null)
+                {
+                    @EmptyStateTemplate
+                }
+                else
+                {
+                    <SvgText X="@(surface.Width / 2)"
+                             Y="@(surface.Height / 2)"
+                             TextAnchor="middle"
+                             CssClass="empty-state"
+                             Content="No data" />
+                }
+            }
+            else
+            {
+                <g class="pie-surface">
+                    @if (ShowGuideRing)
+                    {
+                        <circle cx="@Fmt(Center.X)"
+                                cy="@Fmt(Center.Y)"
+                                r="@Fmt(Radius)"
+                                class="pie-guide-ring" />
+                    }
+
+                    <g class="pie-series" role="list" aria-label="@Title">
+                        @foreach (var point in Points)
+                        {
+                            var pointClasses = GetPointClasses(point);
+                            <g @key="point.Key"
+                               class="@pointClasses"
+                               role="listitem"
+                               tabindex="0"
+                               aria-label="@point.AccessibleLabel"
+                               aria-selected="@point.IsSelected"
+                               transform="translate(@Fmt(point.Offset.X) @Fmt(point.Offset.Y))"
+                               @onmouseover="() => HandleHoverAsync(point)"
+                               @onmouseout="() => HandleHoverLeaveAsync(point)"
+                               @onfocus="() => HandleFocusAsync(point)"
+                               @onblur="() => HandleBlurAsync(point)"
+                               @onclick="() => HandleSelectAsync(point)"
+                               @onkeydown="(args) => HandleKeyDownAsync(args, point)">
+                                <path class="pie-slice"
+                                      d="@point.PathData"
+                                      style="--slice-color: @point.Fill; --slice-hover-color: @point.HoverFill">
+                                    <title>@point.AccessibleLabel</title>
+                                </path>
+
+                                @if (ShowSliceLabels && LabelMode == PieChartLabelMode.Overlay && point.Percentage >= MinimumLabelPercentage)
+                                {
+                                    @if (PointLabelTemplate is not null)
+                                    {
+                                        @PointLabelTemplate(point)
+                                    }
+                                    else
+                                    {
+                                        var labelBoxWidth = GetOverlayLabelWidth(point);
+                                        var labelBoxX = point.LabelPosition.X - (labelBoxWidth / 2);
+                                        var labelBoxY = point.LabelPosition.Y - 18;
+                                        <g class="pie-slice-label-box">
+                                            <rect x="@Fmt(labelBoxX)"
+                                                  y="@Fmt(labelBoxY)"
+                                                  width="@Fmt(labelBoxWidth)"
+                                                  height="36"
+                                                  rx="12"
+                                                  ry="12"
+                                                  class="pie-slice-label-box__surface" />
+                                            <SvgText X="@point.LabelPosition.X"
+                                                     Y="@(point.LabelPosition.Y - 5)"
+                                                     TextAnchor="middle"
+                                                     DominantBaseline="middle"
+                                                     CssClass="pie-slice-label-box__label"
+                                                     Content="@point.Label" />
+                                            <SvgText X="@point.LabelPosition.X"
+                                                     Y="@(point.LabelPosition.Y + 10)"
+                                                     TextAnchor="middle"
+                                                     DominantBaseline="middle"
+                                                     CssClass="pie-slice-label-box__value"
+                                                     Content="@point.Percentage.ToString("P0", CultureInfo.InvariantCulture)" />
+                                        </g>
+                                    }
+                                }
+                            </g>
+                        }
+                    </g>
+
+                    @if (ShowCenterLabel)
+                    {
+                        <g class="pie-center-label">
+                            @if (HasInnerHole)
+                            {
+                                <circle cx="@Center.X"
+                                        cy="@Center.Y"
+                                        r="@Fmt(CenterLabelOuterRadius)"
+                                        class="pie-center-label__surface" />
+                                <circle cx="@Center.X"
+                                        cy="@Center.Y"
+                                        r="@Fmt(CenterLabelInnerRadius)"
+                                        class="pie-center-label__surface-inner" />
+                            }
+                            <SvgText X="@Center.X"
+                                     Y="@(Center.Y - 11)"
+                                     TextAnchor="middle"
+                                     CssClass="@(HasInnerHole ? "pie-center-label__eyebrow" : "pie-center-label__eyebrow pie-center-label__eyebrow--over-slice")"
+                                     Content="@CenterLabelTitle" />
+                            <SvgText X="@Center.X"
+                                     Y="@(Center.Y + 14)"
+                                     TextAnchor="middle"
+                                     CssClass="@(HasInnerHole ? "pie-center-label__value" : "pie-center-label__value pie-center-label__value--over-slice")"
+                                     Content="@CenterLabelValue" />
+                        </g>
+                    }
+                </g>
+            }
+        </ChildContent>
+        <OverlayContent>
+            @if (ShowTooltip && HoveredPoint is not null)
+            {
+                <div class="chart-tooltip"
+                     style="@GetTooltipStyle(HoveredPoint)">
+                    @if (TooltipTemplate is not null)
+                    {
+                        @TooltipTemplate(HoveredPoint)
+                    }
+                    else
+                    {
+                        <div class="tooltip-label">@HoveredPoint.Label</div>
+                        <div class="tooltip-value">@HoveredPoint.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)</div>
+                    }
+                </div>
+            }
+        </OverlayContent>
+    </ChartSurface>
+
+    @if (ShowSliceLabels && LabelMode == PieChartLabelMode.Legend && Points.Count > 0)
+    {
+        <div class="pie-legend" role="list" aria-label="@($"{Title} legend")">
+            @foreach (var point in Points)
+            {
+                <div class="@GetLegendItemClasses(point)" role="listitem" aria-selected="@point.IsSelected">
+                    <span class="pie-legend__swatch" style="@($"--legend-color: {point.Fill}")" aria-hidden="true"></span>
+                    <span class="pie-legend__label">@point.Label</span>
+                    <span class="pie-legend__value">@point.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)</span>
+                    <span class="pie-legend__percent">@point.Percentage.ToString("P0", CultureInfo.InvariantCulture)</span>
+                </div>
+            }
+        </div>
+    }
+</div>

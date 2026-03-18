@@ -1,0 +1,27 @@
+@namespace FireCharts.Components
+
+<div @ref="_hostElement"
+     class="chart-surface @HostCssClass"
+     style="@HostStyle">
+    <svg class="chart-svg @SvgCssClass"
+         width="@Fmt(ResolvedWidth)"
+         height="@Fmt(ResolvedHeight)"
+         viewBox="0 0 @Fmt(ResolvedWidth) @Fmt(ResolvedHeight)"
+         role="img"
+         aria-labelledby="@_titleId @_descId">
+        <title id="@_titleId">@Title</title>
+        <desc id="@_descId">@Description</desc>
+
+        @if (ChildContent is not null)
+        {
+            @ChildContent(Context)
+        }
+    </svg>
+
+    @if (OverlayContent is not null)
+    {
+        <div class="chart-overlay-layer">
+            @OverlayContent
+        </div>
+    }
+</div>

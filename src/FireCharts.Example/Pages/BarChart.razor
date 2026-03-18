@@ -1,0 +1,294 @@
+@page "/barchart"
+
+@using FireCharts.Models
+
+<PageTitle>Bar Chart</PageTitle>
+
+<PageIntro Kicker="Data visualization"
+           Title="Charts should feel expressive without sacrificing reading comfort."
+           Description="Each chart below uses clearer grid lines, stronger labels, and keyboard-visible hover states so people can understand the data beyond color alone.">
+    <div class="stat-strip" aria-label="Chart accessibility principles">
+        <div class="stat-pill"><strong>Palette</strong><span>Distinct warm and cool hues with darker hover states</span></div>
+        <div class="stat-pill"><strong>Focus</strong><span>Keyboard users get the same emphasis as pointer users</span></div>
+        <div class="stat-pill"><strong>Labels</strong><span>Titles, descriptions, axes, and values remain visible</span></div>
+    </div>
+</PageIntro>
+
+<section class="chart-grid">
+    <ChartDemoCard Kicker="Vertical comparison"
+                   Title="Monthly fruit sales"
+                   Description="A categorical palette helps adjacent bars stay distinguishable while value labels support quick scanning.">
+        <ChildContent>
+            <FireBarChart TItem="FruitSales"
+                          Title="Monthly Fruit Sales"
+                          Description="A bar chart showing fruit sales by month"
+                          Width="600"
+                          Height="400"
+                          Responsive="true"
+                          Items="@Fruit"
+                          ValueSelector="item => item.Value"
+                          LabelSelector="item => item.Label"
+                          ColorSelector="item => item.Color"
+                          HoverColorSelector="item => item.HoverColor"
+                          GridLineCount="5"
+                          BarSpacing="0.2"
+                          SelectedItem="@SelectedFruit"
+                          SelectedItemChanged="OnSelectedFruitChanged">
+                <TooltipTemplate Context="point">
+                    <div class="demo-tooltip-title">@point.Label</div>
+                    <div>@point.Value crates sold</div>
+                </TooltipTemplate>
+            </FireBarChart>
+        </ChildContent>
+        <FooterContent>
+            <p class="selection-note" role="status" aria-live="polite">
+                @if (SelectedFruit is not null)
+                {
+                    <span><strong>Selected:</strong> @SelectedFruit.Label (@SelectedFruit.Value)</span>
+                }
+                else
+                {
+                    <span>Select or focus a bar to inspect its state.</span>
+                }
+            </p>
+        </FooterContent>
+    </ChartDemoCard>
+
+    <ChartDemoCard Kicker="Horizontal ranking"
+                   Title="Fruit sales by category"
+                   Description="Horizontal bars improve label readability when category names are the star of the comparison.">
+        <ChildContent>
+            <FireBarChart TItem="FruitSales"
+                          Title="Horizontal Fruit Sales"
+                          Description="A horizontal bar chart showing fruit sales"
+                          Width="600"
+                          Height="350"
+                          Responsive="true"
+                          Horizontal="true"
+                          Items="@Fruit"
+                          ValueSelector="item => item.Value"
+                          LabelSelector="item => item.Label"
+                          ColorSelector="item => item.Color"
+                          HoverColorSelector="item => item.HoverColor"
+                          GridLineCount="4"
+                          BarSpacing="0.15" />
+        </ChildContent>
+    </ChartDemoCard>
+
+    <ChartDemoCard Kicker="Minimal theme"
+                   Title="Default palette"
+                   Description="Even without per-bar colors, the base theme keeps axes, labels, and focus treatment aligned with the rest of the app."
+                   Compact="true">
+        <ChildContent>
+            <FireBarChart TItem="QuarterSales"
+                          Title="Simple Chart"
+                          Description="A minimal bar chart using default colors"
+                          Width="400"
+                          Height="300"
+                          Responsive="true"
+                          Items="@Quarterly"
+                          ValueSelector="item => item.Value"
+                          LabelSelector="item => item.Label" />
+        </ChildContent>
+    </ChartDemoCard>
+
+    <ChartDemoCard Kicker="Interactive playground"
+                   Title="Tune the bar chart"
+                   Description="Change the main configuration values and see how the chart responds immediately."
+                   WrapInScroll="false">
+        <ChildContent>
+            <div class="playground-layout">
+                <div class="playground-canvas">
+                    <div class="chart-scroll">
+                        <FireBarChart TItem="FruitSales"
+                                      Title="Interactive Fruit Sales"
+                                      Description="A configurable bar chart for trying chart settings"
+                                      Width="600"
+                                      Height="380"
+                                      Responsive="true"
+                                      Horizontal="@PlaygroundHorizontal"
+                                      ShowGridLines="@PlaygroundShowGridLines"
+                                      ShowAxisLabels="@PlaygroundShowAxisLabels"
+                                      ShowValueLabels="@PlaygroundShowValueLabels"
+                                      ShowTooltip="@PlaygroundShowTooltip"
+                                      GridLineCount="@PlaygroundGridLineCount"
+                                      BarSpacing="@PlaygroundBarSpacing"
+                                      CornerRadius="@PlaygroundCornerRadius"
+                                      ValueFormat="@PlaygroundValueFormat"
+                                      Items="@Fruit"
+                                      ValueSelector="item => item.Value"
+                                      LabelSelector="item => item.Label"
+                                      ColorSelector="item => item.Color"
+                                      HoverColorSelector="item => item.HoverColor" />
+                    </div>
+                </div>
+
+                <div class="playground-panel">
+                    <div class="playground-panel__header">
+                        <div>
+                            <p class="section-kicker">Controls</p>
+                            <h3>Bar options</h3>
+                        </div>
+                        <button type="button" class="button-link playground-reset" @onclick="ResetBarPlayground">Reset</button>
+                    </div>
+
+                    <div class="control-grid">
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundHorizontal" />
+                            <span>Horizontal layout</span>
+                        </label>
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundShowGridLines" />
+                            <span>Show grid lines</span>
+                        </label>
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundShowAxisLabels" />
+                            <span>Show axis labels</span>
+                        </label>
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundShowValueLabels" />
+                            <span>Show value labels</span>
+                        </label>
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundShowTooltip" />
+                            <span>Show tooltip</span>
+                        </label>
+
+                        <label class="control-field">
+                            <span>Grid lines</span>
+                            <input type="range" min="2" max="8" step="1" @bind="PlaygroundGridLineCount" @bind:event="oninput" />
+                            <strong>@PlaygroundGridLineCount</strong>
+                        </label>
+
+                        <label class="control-field">
+                            <span>Bar spacing</span>
+                            <input type="range" min="0" max="0.5" step="0.05" @bind="PlaygroundBarSpacing" @bind:event="oninput" />
+                            <strong>@PlaygroundBarSpacing.ToString("0.00")</strong>
+                        </label>
+
+                        <label class="control-field">
+                            <span>Corner radius</span>
+                            <input type="range" min="0" max="12" step="1" @bind="PlaygroundCornerRadius" @bind:event="oninput" />
+                            <strong>@PlaygroundCornerRadius.ToString("0") px</strong>
+                        </label>
+
+                        <label class="control-select">
+                            <span>Value format</span>
+                            <select @bind="PlaygroundValueFormat">
+                                <option value="F0">Whole numbers</option>
+                                <option value="F1">One decimal</option>
+                                <option value="N0">Thousands</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </ChildContent>
+    </ChartDemoCard>
+</section>
+
+<ExampleDocsSection Title="Bar chart code examples"
+                    Description="The component is data-driven, typed, and selection-aware. Start with a small record for your data, then point the chart at label and value selectors."
+                    CodeTitle="Render a typed bar chart"
+                    CodeDescription="This example shows the minimum setup plus color selectors and two-way selection binding."
+                    CodeExample="@BarChartUsageExample"
+                    ApiTitle="Most useful parameters"
+                    ApiDescription="Use these first. The rest of the API is mostly styling and formatting."
+                    ApiItems="@BarChartApiItems" />
+
+@code {
+    private FruitSales? SelectedFruit { get; set; }
+
+    private IReadOnlyList<FruitSales> Fruit { get; } =
+    [
+        new("Apples", 45, "#d94f3d", "#a73728"),
+        new("Bananas", 82, "#e79b21", "#b87414"),
+        new("Kiwis", 35, "#198f8c", "#11696c"),
+        new("Oranges", 64, "#f05f3b", "#bb4328"),
+        new("Lemons", 28, "#8a7cf6", "#6257c4")
+    ];
+
+    private IReadOnlyList<QuarterSales> Quarterly { get; } =
+    [
+        new("Q1", 120),
+        new("Q2", 200),
+        new("Q3", 150),
+        new("Q4", 180)
+    ];
+
+    private bool PlaygroundHorizontal { get; set; }
+    private bool PlaygroundShowGridLines { get; set; } = true;
+    private bool PlaygroundShowAxisLabels { get; set; } = true;
+    private bool PlaygroundShowValueLabels { get; set; } = true;
+    private bool PlaygroundShowTooltip { get; set; } = true;
+    private int PlaygroundGridLineCount { get; set; } = 5;
+    private double PlaygroundBarSpacing { get; set; } = 0.2;
+    private double PlaygroundCornerRadius { get; set; } = 4;
+    private string PlaygroundValueFormat { get; set; } = "F0";
+
+    private Task OnSelectedFruitChanged(FruitSales? item)
+    {
+        SelectedFruit = item;
+        return Task.CompletedTask;
+    }
+
+    private void ResetBarPlayground()
+    {
+        PlaygroundHorizontal = false;
+        PlaygroundShowGridLines = true;
+        PlaygroundShowAxisLabels = true;
+        PlaygroundShowValueLabels = true;
+        PlaygroundShowTooltip = true;
+        PlaygroundGridLineCount = 5;
+        PlaygroundBarSpacing = 0.2;
+        PlaygroundCornerRadius = 4;
+        PlaygroundValueFormat = "F0";
+    }
+
+    private string BarChartUsageExample => """
+@using FireCharts.Components
+
+@code {
+    private SalesPoint? selectedPoint;
+
+    private IReadOnlyList<SalesPoint> sales =
+    [
+        new("North", 124, "#d94f3d", "#a73728"),
+        new("South", 98, "#198f8c", "#11696c"),
+        new("West", 141, "#8a7cf6", "#6257c4")
+    ];
+
+    private sealed record SalesPoint(string Label, double Value, string Color, string HoverColor);
+}
+
+<FireBarChart TItem="SalesPoint"
+              Title="Regional sales"
+              Description="Quarterly sales totals by region"
+              Items="@sales"
+              ValueSelector="item => item.Value"
+              LabelSelector="item => item.Label"
+              ColorSelector="item => item.Color"
+              HoverColorSelector="item => item.HoverColor"
+              Responsive="true"
+              @bind-SelectedItem="selectedPoint">
+    <TooltipTemplate Context="point">
+        <div>@point.Label</div>
+        <div>@point.Value units</div>
+    </TooltipTemplate>
+</FireBarChart>
+""";
+
+    private IReadOnlyList<ExampleApiItem> BarChartApiItems { get; } =
+    [
+        new("Items", "The collection of values to render."),
+        new("ValueSelector and LabelSelector", "Map each item to its numeric value and display label."),
+        new("@bind-SelectedItem", "Keeps chart selection in sync with component state."),
+        new("ColorSelector and HoverColorSelector", "Provide per-bar palette control without custom rendering."),
+        new("TooltipTemplate", "Render richer hover content than the default label and value pair."),
+        new("Horizontal and Responsive", "Switch axis orientation and let the chart reflow to its container width.")
+    ];
+
+    private sealed record FruitSales(string Label, double Value, string Color, string HoverColor);
+
+    private sealed record QuarterSales(string Label, double Value);
+}

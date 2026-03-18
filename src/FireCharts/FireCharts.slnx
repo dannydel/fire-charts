@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="../FireCharts.Example/FireCharts.Example.csproj" />
+  <Project Path="../FireCharts.Tests/FireCharts.Tests.csproj" />
+  <Project Path="FireCharts.csproj" />
+</Solution>

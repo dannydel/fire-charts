@@ -1,0 +1,135 @@
+.app-shell {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.skip-link {
+    position: absolute;
+    left: 1rem;
+    top: 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--color-accent-strong);
+    color: var(--color-surface);
+    border-radius: 999px;
+    text-decoration: none;
+    transform: translateY(-200%);
+    z-index: 1000;
+}
+
+.skip-link:focus {
+    transform: translateY(0);
+}
+
+.sidebar {
+    position: relative;
+    background:
+        radial-gradient(circle at top left, rgba(255, 122, 74, 0.24), transparent 34%),
+        linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(24, 24, 27, 0.98) 100%);
+    z-index: 20;
+}
+
+.app-frame {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.top-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 1.25rem 1.25rem 0;
+}
+
+.top-row__eyebrow,
+.top-row__title {
+    margin: 0;
+}
+
+.top-row__eyebrow {
+    color: var(--color-accent-strong);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.top-row__title {
+    margin-top: 0.35rem;
+    color: var(--color-text-soft);
+    font-size: 0.98rem;
+}
+
+.top-row__link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.75rem;
+    padding: 0.8rem 1rem;
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-pill);
+    color: var(--color-text);
+    text-decoration: none;
+    font-weight: 600;
+    box-shadow: var(--shadow-soft);
+}
+
+.top-row__link:hover {
+    border-color: rgba(240, 85, 41, 0.35);
+    background: rgba(255, 255, 255, 0.92);
+}
+
+main {
+    flex: 1;
+}
+
+.content-shell {
+    padding: 1.25rem;
+}
+
+@media (max-width: 640.98px) {
+    .sidebar {
+        position: sticky;
+        top: 0;
+    }
+
+    .top-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+@media (min-width: 641px) {
+    .app-shell {
+        flex-direction: row;
+    }
+
+    .sidebar {
+        width: 19rem;
+        min-height: 100vh;
+        position: sticky;
+        top: 0;
+        transition: width 260ms ease;
+        align-self: flex-start;
+    }
+
+    .sidebar.sidebar--compact {
+        width: 6.25rem;
+    }
+
+    .top-row {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        padding: 1.5rem 2rem 0;
+        backdrop-filter: blur(18px);
+    }
+
+    .content-shell {
+        padding: 1.25rem 2rem 2rem;
+    }
+}

@@ -1,0 +1,34 @@
+@namespace FireCharts.Components
+@using System.Globalization
+@using Microsoft.AspNetCore.Components.Rendering
+
+@((MarkupString)BuildTextElement())
+
+@code {
+    [Parameter] public double X { get; set; }
+    [Parameter] public double Y { get; set; }
+    [Parameter] public string? TextAnchor { get; set; }
+    [Parameter] public string? DominantBaseline { get; set; }
+    [Parameter] public string? CssClass { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string Content { get; set; } = "";
+
+    private string BuildTextElement()
+    {
+        var x = double.IsFinite(X) ? X.ToString("F1", CultureInfo.InvariantCulture) : "0.0";
+        var y = double.IsFinite(Y) ? Y.ToString("F1", CultureInfo.InvariantCulture) : "0.0";
+
+        var attrs = $"x=\"{x}\" y=\"{y}\"";
+
+        if (!string.IsNullOrEmpty(TextAnchor))
+            attrs += $" text-anchor=\"{TextAnchor}\"";
+
+        if (!string.IsNullOrEmpty(DominantBaseline))
+            attrs += $" dominant-baseline=\"{DominantBaseline}\"";
+
+        if (!string.IsNullOrEmpty(CssClass))
+            attrs += $" class=\"{CssClass}\"";
+
+        return $"<text {attrs}>{System.Net.WebUtility.HtmlEncode(Content)}</text>";
+    }
+}

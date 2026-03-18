@@ -1,0 +1,39 @@
+@namespace FireCharts.Example.Components
+
+<article class="@CardClass">
+    <div class="chart-card__header">
+        <div>
+            <p class="section-kicker">@Kicker</p>
+            <h2>@Title</h2>
+        </div>
+        <p class="chart-card__copy">@Description</p>
+    </div>
+
+    @if (WrapInScroll)
+    {
+        <div class="chart-scroll">
+            @ChildContent
+        </div>
+    }
+    else
+    {
+        @ChildContent
+    }
+
+    @if (FooterContent is not null)
+    {
+        @FooterContent
+    }
+</article>
+
+@code {
+    [Parameter, EditorRequired] public string Kicker { get; set; } = "";
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public string Description { get; set; } = "";
+    [Parameter] public bool Compact { get; set; }
+    [Parameter] public bool WrapInScroll { get; set; } = true;
+    [Parameter, EditorRequired] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? FooterContent { get; set; }
+
+    private string CardClass => Compact ? "chart-card chart-card--compact" : "chart-card";
+}

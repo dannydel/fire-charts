@@ -1,0 +1,38 @@
+﻿@inherits LayoutComponentBase
+
+<a class="skip-link" href="#main-content">Skip to content</a>
+
+<div class="app-shell">
+    <aside class="sidebar @(isNavCompact ? "sidebar--compact" : null)">
+        <NavMenu OnCompactChanged="HandleNavCompactChanged" />
+    </aside>
+
+    <div class="app-frame">
+        <header class="top-row">
+            <div>
+                <p class="top-row__eyebrow">Editorial-bright accessibility demo</p>
+                <p class="top-row__title">Clean structure, bold color, readable data</p>
+            </div>
+
+            <a class="top-row__link" href="https://learn.microsoft.com/aspnet/core/" target="_blank" rel="noreferrer">
+                Built with Blazor WebAssembly
+            </a>
+        </header>
+
+        <main id="main-content" tabindex="-1">
+            <article class="content-shell">
+                @Body
+            </article>
+        </main>
+    </div>
+</div>
+
+@code {
+    private bool isNavCompact = true;
+
+    private Task HandleNavCompactChanged(bool compact)
+    {
+        isNavCompact = compact;
+        return Task.CompletedTask;
+    }
+}

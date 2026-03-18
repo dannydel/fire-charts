@@ -1,0 +1,28 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="concept2b-accent" x1="30" y1="24" x2="96" y2="94" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFB347"/>
+      <stop offset="0.5" stop-color="#F05F3B"/>
+      <stop offset="1" stop-color="#8A7CF6"/>
+    </linearGradient>
+    <linearGradient id="concept2b-flame" x1="78" y1="19" x2="92" y2="42" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF1A8"/>
+      <stop offset="0.55" stop-color="#FFB347"/>
+      <stop offset="1" stop-color="#F05F3B"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="16" y="16" width="96" height="96" rx="28" fill="#201A1F"/>
+  <path d="M42 36C42 32.6863 44.6863 30 48 30H80C83.3137 30 86 32.6863 86 36V92C86 95.3137 83.3137 98 80 98H48C44.6863 98 42 95.3137 42 92V36Z" fill="#FFF8F2"/>
+
+  <path d="M42 36C42 32.6863 44.6863 30 48 30H71.5C74.8 30 77.6 31.6 79.5 34.1C81.3 29.8 84.3 26.3 88.1 22.5C91.7 28.1 94 32.9 94 38.4C94 40 93.8 41.5 93.4 43H86V40C86 37.8 84.2 36 82 36H42Z" fill="url(#concept2b-accent)"/>
+
+  <path d="M87.8 22.8C86.9 26.5 84.8 29.4 82.3 31.8C79.8 34.1 77.7 36.3 77.7 40.1C77.7 45 81.5 48.7 86.3 48.7C91.8 48.7 95.4 44.4 95.4 39.4C95.4 33.8 92.3 30.1 87.8 22.8Z" fill="#201A1F" fill-opacity="0.16"/>
+  <path d="M86.2 27.9C85.4 30.9 83.8 33.2 81.8 35.1C79.8 37 78 38.7 78 41.8C78 45.8 81.1 48.8 85 48.8C89.6 48.8 92.5 45.2 92.5 41.1C92.5 36.5 89.9 33.3 86.2 27.9Z" fill="url(#concept2b-flame)"/>
+
+  <path d="M50 84V46" stroke="#201A1F" stroke-width="4.5" stroke-linecap="round"/>
+  <path d="M50 84H80" stroke="#201A1F" stroke-width="4.5" stroke-linecap="round"/>
+  <rect x="58" y="63" width="8" height="15" rx="3" fill="#FFB347"/>
+  <rect x="70" y="54" width="8" height="24" rx="3" fill="#F05F3B"/>
+  <rect x="82" y="44" width="8" height="34" rx="3" fill="#8A7CF6"/>
+</svg>

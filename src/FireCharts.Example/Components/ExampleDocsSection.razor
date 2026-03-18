@@ -1,0 +1,56 @@
+@namespace FireCharts.Example.Components
+
+<section class="page-section">
+    <div class="section-heading">
+        <p class="section-kicker">How to use</p>
+        <h2>@Title</h2>
+        <p class="section-lede">@Description</p>
+    </div>
+
+    <div class="docs-grid">
+        <article class="docs-card docs-card--code">
+            <div class="chart-card__header">
+                <div>
+                    <p class="section-kicker">@CodeKicker</p>
+                    <h3>@CodeTitle</h3>
+                </div>
+                <p class="chart-card__copy">@CodeDescription</p>
+            </div>
+
+            <pre class="code-example"><code>@CodeExample</code></pre>
+        </article>
+
+        <article class="docs-card">
+            <div class="chart-card__header">
+                <div>
+                    <p class="section-kicker">@ApiKicker</p>
+                    <h3>@ApiTitle</h3>
+                </div>
+                <p class="chart-card__copy">@ApiDescription</p>
+            </div>
+
+            <dl class="api-list">
+                @foreach (var item in ApiItems)
+                {
+                    <div>
+                        <dt><code>@item.Name</code></dt>
+                        <dd>@item.Description</dd>
+                    </div>
+                }
+            </dl>
+        </article>
+    </div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter, EditorRequired] public string Description { get; set; } = "";
+    [Parameter] public string CodeKicker { get; set; } = "Basic usage";
+    [Parameter, EditorRequired] public string CodeTitle { get; set; } = "";
+    [Parameter, EditorRequired] public string CodeDescription { get; set; } = "";
+    [Parameter, EditorRequired] public string CodeExample { get; set; } = "";
+    [Parameter] public string ApiKicker { get; set; } = "API guide";
+    [Parameter, EditorRequired] public string ApiTitle { get; set; } = "";
+    [Parameter, EditorRequired] public string ApiDescription { get; set; } = "";
+    [Parameter, EditorRequired] public IReadOnlyList<ExampleApiItem> ApiItems { get; set; } = Array.Empty<ExampleApiItem>();
+}

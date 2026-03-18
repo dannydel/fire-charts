@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+
+    <ItemGroup>
+        <SupportedPlatform Include="browser"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0"/>
+    </ItemGroup>
+
+    <ItemGroup>
+      <_ContentIncludedByDefault Remove="FireCharts.Example\obj\FireCharts.Example.csproj.nuget.dgspec.json" />
+      <_ContentIncludedByDefault Remove="FireCharts.Example\obj\project.assets.json" />
+      <_ContentIncludedByDefault Remove="FireCharts.Example\obj\project.packagespec.json" />
+      <_ContentIncludedByDefault Remove="FireCharts.Example\Properties\launchSettings.json" />
+      <_ContentIncludedByDefault Remove="FireCharts.Example\wwwroot\sample-data\weather.json" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <UpToDateCheckInput Remove="FireCharts.Example\App.razor" />
+      <UpToDateCheckInput Remove="FireCharts.Example\Layout\MainLayout.razor" />
+      <UpToDateCheckInput Remove="FireCharts.Example\Layout\NavMenu.razor" />
+      <UpToDateCheckInput Remove="FireCharts.Example\Pages\Counter.razor" />
+      <UpToDateCheckInput Remove="FireCharts.Example\Pages\Home.razor" />
+      <UpToDateCheckInput Remove="FireCharts.Example\Pages\NotFound.razor" />
+      <UpToDateCheckInput Remove="FireCharts.Example\Pages\Weather.razor" />
+      <UpToDateCheckInput Remove="FireCharts.Example\_Imports.razor" />
+    </ItemGroup>
+
+</Project>

@@ -1,0 +1,40 @@
+﻿@page "/counter"
+
+<PageTitle>Counter</PageTitle>
+
+<section class="page-section page-section--compact">
+    <div class="section-heading">
+        <p class="section-kicker">Interaction demo</p>
+        <h1>Buttons and status need the same visual care as charts.</h1>
+        <p class="section-lede">This page demonstrates high-contrast controls, clear status messaging, and tactile feedback without overusing motion.</p>
+    </div>
+
+    <div class="callout-card">
+        <p class="metric-label">Current count</p>
+        <p class="metric-value" role="status" aria-live="polite">@currentCount</p>
+        <button class="button-link button-link--primary" @onclick="IncrementCount">Increase count</button>
+    </div>
+</section>
+
+<section class="feature-grid" aria-label="Interaction principles">
+    <article class="feature-card">
+        <p class="feature-card__eyebrow">Focus</p>
+        <h2>Keyboard first</h2>
+        <p>Interactive elements keep a strong, warm focus ring so navigation is visible against both dark and light surfaces.</p>
+    </article>
+
+    <article class="feature-card">
+        <p class="feature-card__eyebrow">Feedback</p>
+        <h2>Meaningful status</h2>
+        <p>The count is announced via a live region, helping assistive technology users track changes without extra navigation.</p>
+    </article>
+</section>
+
+@code {
+    private int currentCount = 0;
+
+    private void IncrementCount()
+    {
+        currentCount++;
+    }
+}

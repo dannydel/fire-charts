@@ -1,0 +1,430 @@
+@page "/linechart"
+
+@using System.Globalization
+@using FireCharts.Models
+
+<PageTitle>Line Chart</PageTitle>
+
+<PageIntro Kicker="Trend visualization"
+           Title="Line charts should feel fluid, precise, and easy to wire into dashboard layouts."
+           Description="This line chart keeps interaction and animation in Blazor, gives you smooth, linear, and step interpolation, and lets highlighted milestones carry the tooltip weight instead of forcing every point into view.">
+    <div class="stat-strip" aria-label="Line chart design goals">
+        <div class="stat-pill"><strong>Motion</strong><span>SVG paths animate with CSS only and respect reduced-motion settings</span></div>
+        <div class="stat-pill"><strong>Comparison</strong><span>Single-series trends and multi-series dashboard views share one API</span></div>
+        <div class="stat-pill"><strong>Detail</strong><span>Milestones can opt into markers and tooltips without visual clutter</span></div>
+    </div>
+</PageIntro>
+
+<section class="chart-grid">
+    <ChartDemoCard Kicker="Time series"
+                   Title="Daily permit applications"
+                   Description="A smooth line keeps the trend readable while only the milestone points surface annotations and tooltip detail.">
+        <ChildContent>
+            <FireLineChart TItem="TrendPoint"
+                           Title="Daily permit applications"
+                           Description="Permit application volume over time"
+                           Width="620"
+                           Height="390"
+                           Responsive="true"
+                           Items="@PermitVolumeTrend"
+                           XValueSelector="point => LineChartXValue.FromDateTime(point.Date)"
+                           YValueSelector="point => point.Value"
+                           LabelSelector="GetTrendLabel"
+                           TooltipTextSelector="point => point.Note ?? GetTrendLabel(point)"
+                           HighlightSelector="point => point.Highlight"
+                           ShowLegend="false">
+                <TooltipTemplate Context="point">
+                    <div class="demo-tooltip-title">@point.Label</div>
+                    <div>@point.X.ToDateTime().ToString("MMM d", CultureInfo.InvariantCulture)</div>
+                    <div>@point.Y.ToString("F0", CultureInfo.InvariantCulture) applications</div>
+                    @if (!string.IsNullOrWhiteSpace(point.Item.Note))
+                    {
+                        <div>@point.Item.Note</div>
+                    }
+                </TooltipTemplate>
+            </FireLineChart>
+        </ChildContent>
+    </ChartDemoCard>
+
+    <ChartDemoCard Kicker="Multi-series"
+                   Title="Permits vs. inspections"
+                   Description="Two series share the same time scale, and selection stays bound so the rest of a dashboard can react to a specific point.">
+        <ChildContent>
+            <FireLineChart TItem="TrendPoint"
+                           Title="Permits vs. inspections"
+                           Description="Comparison of permits and inspections over time"
+                           Width="620"
+                           Height="390"
+                           Responsive="true"
+                           Series="@ComparisonSeries"
+                           XValueSelector="point => LineChartXValue.FromDateTime(point.Date)"
+                           YValueSelector="point => point.Value"
+                           LabelSelector="GetTrendLabel"
+                           HighlightSelector="point => point.Highlight"
+                           @bind-SelectedPoint="SelectedComparisonPoint">
+                <TooltipTemplate Context="point">
+                    <div class="demo-tooltip-title">@point.SeriesName</div>
+                    <div>@point.X.ToDateTime().ToString("MMM d", CultureInfo.InvariantCulture)</div>
+                    <div>@point.Y.ToString("F0", CultureInfo.InvariantCulture) visits</div>
+                </TooltipTemplate>
+            </FireLineChart>
+        </ChildContent>
+        <FooterContent>
+            <p class="selection-note" role="status" aria-live="polite">
+                @if (SelectedComparisonPoint is not null)
+                {
+                    <span>
+                        <strong>Selected:</strong>
+                        @SelectedComparisonPoint.SeriesName on @SelectedComparisonPoint.X.ToDateTime().ToString("MMM d", CultureInfo.InvariantCulture)
+                        (@SelectedComparisonPoint.Y.ToString("F0", CultureInfo.InvariantCulture))
+                    </span>
+                }
+                else
+                {
+                    <span>Select a visible marker to pin a specific comparison point.</span>
+                }
+            </p>
+        </FooterContent>
+    </ChartDemoCard>
+
+    <ChartDemoCard Kicker="Area variant"
+                   Title="Resident portal sessions"
+                   Description="The same component can fill down to the baseline for softer throughput stories without changing the data model."
+                   Compact="true">
+        <ChildContent>
+            <FireLineChart TItem="TrendPoint"
+                           Title="Resident portal sessions"
+                           Description="Weekly resident portal sessions"
+                           Width="420"
+                           Height="330"
+                           Responsive="true"
+                           Items="@PortalSessionsTrend"
+                           XValueSelector="point => LineChartXValue.FromDateTime(point.Date)"
+                           YValueSelector="point => point.Value"
+                           LabelSelector="GetTrendLabel"
+                           Variant="@LineChartVariant.Area"
+                           PointDisplayMode="@LinePointDisplayMode.All"
+                           ShowLegend="false"
+                           FillColor="#f05f3b"
+                           LineColor="#f05f3b"
+                           HoverColor="#bc3b20" />
+        </ChildContent>
+    </ChartDemoCard>
+
+    <ChartDemoCard Kicker="Step interpolation"
+                   Title="Response state changes"
+                   Description="Step mode is useful for operational thresholds, staffing levels, and other values that change in discrete jumps."
+                   Compact="true">
+        <ChildContent>
+            <FireLineChart TItem="TrendPoint"
+                           Title="Response state changes"
+                           Description="Discrete staffing state changes across the day"
+                           Width="420"
+                           Height="330"
+                           Responsive="true"
+                           Items="@ResponseStateTrend"
+                           XValueSelector="point => LineChartXValue.FromDateTime(point.Date)"
+                           YValueSelector="point => point.Value"
+                           LabelSelector="GetStepLabel"
+                           HighlightSelector="point => point.Highlight"
+                           Interpolation="@LineInterpolationMode.Step"
+                           PointDisplayMode="@LinePointDisplayMode.All"
+                           ShowLegend="false"
+                           ValueFormat="F1"
+                           LineColor="#198f8c"
+                           HoverColor="#11696c"
+                           FillColor="#198f8c">
+                <TooltipTemplate Context="point">
+                    <div class="demo-tooltip-title">@point.Label</div>
+                    <div>@point.X.ToDateTime().ToString("h:mm tt", CultureInfo.InvariantCulture)</div>
+                    <div>@GetResponseState(point.Item.Value)</div>
+                </TooltipTemplate>
+            </FireLineChart>
+        </ChildContent>
+    </ChartDemoCard>
+
+    <ChartDemoCard Kicker="Interactive playground"
+                   Title="Tune the line chart"
+                   Description="Switch interpolation styles, reveal more or fewer points, and adjust axis density without changing the data source."
+                   WrapInScroll="false">
+        <ChildContent>
+            <div class="playground-layout">
+                <div class="playground-canvas">
+                    <div class="chart-scroll">
+                        <FireLineChart TItem="TrendPoint"
+                                       Title="Interactive trend comparison"
+                                       Description="A configurable line chart for trying trend settings"
+                                       Width="680"
+                                       Height="400"
+                                       Responsive="true"
+                                       Series="@ComparisonSeries"
+                                       XValueSelector="point => LineChartXValue.FromDateTime(point.Date)"
+                                       YValueSelector="point => point.Value"
+                                       LabelSelector="GetTrendLabel"
+                                       HighlightSelector="point => point.Highlight"
+                                       Variant="@PlaygroundVariant"
+                                       Interpolation="@PlaygroundInterpolation"
+                                       CurveTension="@PlaygroundCurveTension"
+                                       ShowGridLines="@PlaygroundShowGridLines"
+                                       ShowAxisLabels="@PlaygroundShowAxisLabels"
+                                       ShowLegend="@PlaygroundShowLegend"
+                                       ShowTooltip="@PlaygroundShowTooltip"
+                                       PointDisplayMode="@PlaygroundPointDisplayMode"
+                                       XAxisTickCount="@PlaygroundXAxisTickCount"
+                                       YAxisTickCount="@PlaygroundYAxisTickCount"
+                                       AreaOpacity="@PlaygroundAreaOpacity" />
+                    </div>
+                </div>
+
+                <div class="playground-panel">
+                    <div class="playground-panel__header">
+                        <div>
+                            <p class="section-kicker">Controls</p>
+                            <h3>Line options</h3>
+                        </div>
+                        <button type="button" class="button-link playground-reset" @onclick="ResetLinePlayground">Reset</button>
+                    </div>
+
+                    <div class="control-grid">
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundShowGridLines" />
+                            <span>Show grid lines</span>
+                        </label>
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundShowAxisLabels" />
+                            <span>Show axis labels</span>
+                        </label>
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundShowLegend" />
+                            <span>Show legend</span>
+                        </label>
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundShowTooltip" />
+                            <span>Show tooltip</span>
+                        </label>
+
+                        <label class="control-select">
+                            <span>Variant</span>
+                            <select @bind="PlaygroundVariant">
+                                <option value="@LineChartVariant.Line">Line</option>
+                                <option value="@LineChartVariant.Area">Area</option>
+                            </select>
+                        </label>
+
+                        <label class="control-select">
+                            <span>Interpolation</span>
+                            <select @bind="PlaygroundInterpolation">
+                                <option value="@LineInterpolationMode.Smooth">Smooth</option>
+                                <option value="@LineInterpolationMode.Linear">Linear</option>
+                                <option value="@LineInterpolationMode.Step">Step</option>
+                            </select>
+                        </label>
+
+                        <label class="control-select">
+                            <span>Point markers</span>
+                            <select @bind="PlaygroundPointDisplayMode">
+                                <option value="@LinePointDisplayMode.HighlightedOnly">Highlighted only</option>
+                                <option value="@LinePointDisplayMode.All">All points</option>
+                                <option value="@LinePointDisplayMode.None">None</option>
+                            </select>
+                        </label>
+
+                        <label class="control-field">
+                            <span>Curve tension</span>
+                            <input type="range" min="0.1" max="1" step="0.05" @bind="PlaygroundCurveTension" @bind:event="oninput" />
+                            <strong>@PlaygroundCurveTension.ToString("0.00", CultureInfo.InvariantCulture)</strong>
+                        </label>
+
+                        <label class="control-field">
+                            <span>Area opacity</span>
+                            <input type="range" min="0.05" max="0.45" step="0.01" @bind="PlaygroundAreaOpacity" @bind:event="oninput" />
+                            <strong>@PlaygroundAreaOpacity.ToString("0.00", CultureInfo.InvariantCulture)</strong>
+                        </label>
+
+                        <label class="control-field">
+                            <span>X-axis ticks</span>
+                            <input type="range" min="2" max="7" step="1" @bind="PlaygroundXAxisTickCount" @bind:event="oninput" />
+                            <strong>@PlaygroundXAxisTickCount</strong>
+                        </label>
+
+                        <label class="control-field">
+                            <span>Y-axis ticks</span>
+                            <input type="range" min="2" max="7" step="1" @bind="PlaygroundYAxisTickCount" @bind:event="oninput" />
+                            <strong>@PlaygroundYAxisTickCount</strong>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </ChildContent>
+    </ChartDemoCard>
+</section>
+
+<ExampleDocsSection Title="Line chart code examples"
+                    Description="The line chart keeps the same typed, selector-driven model as the other charts while adding first-class support for multi-series trends."
+                    CodeTitle="Render a time-based line chart"
+                    CodeDescription="Start with one list of typed records, map your X and Y values, and opt specific points into markers with a highlight selector."
+                    CodeExample="@LineChartUsageExample"
+                    ApiTitle="Most useful parameters"
+                    ApiDescription="These are the parameters you will use most often when building dashboards."
+                    ApiItems="@LineChartApiItems" />
+
+@code {
+    private LineChartPoint<TrendPoint>? SelectedComparisonPoint { get; set; }
+
+    private IReadOnlyList<TrendPoint> PermitVolumeTrend { get; } =
+    [
+        new(new DateTime(2025, 1, 6), 118, Note: "The first full week after holiday closures."),
+        new(new DateTime(2025, 1, 13), 126),
+        new(new DateTime(2025, 1, 20), 131, "Review queue spike", true, "A weather delay pushed several reviews into the same week."),
+        new(new DateTime(2025, 1, 27), 129),
+        new(new DateTime(2025, 2, 3), 141),
+        new(new DateTime(2025, 2, 10), 154, "Launch week", true, "A public portal refresh increased online submissions."),
+        new(new DateTime(2025, 2, 17), 149),
+        new(new DateTime(2025, 2, 24), 162, "Peak volume", true, "Staffing shifts were added here to keep turnaround time stable.")
+    ];
+
+    private IReadOnlyList<TrendPoint> PermitComparisonTrend { get; } =
+    [
+        new(new DateTime(2025, 1, 6), 108),
+        new(new DateTime(2025, 1, 13), 115),
+        new(new DateTime(2025, 1, 20), 123),
+        new(new DateTime(2025, 1, 27), 121),
+        new(new DateTime(2025, 2, 3), 134),
+        new(new DateTime(2025, 2, 10), 142, "Portal launch", true),
+        new(new DateTime(2025, 2, 17), 138),
+        new(new DateTime(2025, 2, 24), 147)
+    ];
+
+    private IReadOnlyList<TrendPoint> InspectionComparisonTrend { get; } =
+    [
+        new(new DateTime(2025, 1, 6), 94),
+        new(new DateTime(2025, 1, 13), 101),
+        new(new DateTime(2025, 1, 20), 98),
+        new(new DateTime(2025, 1, 27), 112),
+        new(new DateTime(2025, 2, 3), 118),
+        new(new DateTime(2025, 2, 10), 124, "Inspector surge", true),
+        new(new DateTime(2025, 2, 17), 121),
+        new(new DateTime(2025, 2, 24), 129)
+    ];
+
+    private IReadOnlyList<TrendPoint> PortalSessionsTrend { get; } =
+    [
+        new(new DateTime(2025, 1, 6), 850),
+        new(new DateTime(2025, 1, 13), 910),
+        new(new DateTime(2025, 1, 20), 990),
+        new(new DateTime(2025, 1, 27), 970),
+        new(new DateTime(2025, 2, 3), 1115),
+        new(new DateTime(2025, 2, 10), 1170),
+        new(new DateTime(2025, 2, 17), 1235),
+        new(new DateTime(2025, 2, 24), 1310)
+    ];
+
+    private IReadOnlyList<TrendPoint> ResponseStateTrend { get; } =
+    [
+        new(new DateTime(2025, 2, 24, 7, 0, 0), 1, "Normal", true),
+        new(new DateTime(2025, 2, 24, 9, 0, 0), 2, "Elevated", true),
+        new(new DateTime(2025, 2, 24, 11, 30, 0), 3, "Peak", true),
+        new(new DateTime(2025, 2, 24, 14, 0, 0), 2, "Elevated", true),
+        new(new DateTime(2025, 2, 24, 16, 0, 0), 1, "Normal", true),
+        new(new DateTime(2025, 2, 24, 18, 0, 0), 0.5, "Quiet", true)
+    ];
+
+    private IReadOnlyList<LineChartSeries<TrendPoint>> ComparisonSeries =>
+    [
+        new("Permits", PermitComparisonTrend, "#d94f3d", FillColor: "#d94f3d"),
+        new("Inspections", InspectionComparisonTrend, "#198f8c", FillColor: "#198f8c")
+    ];
+
+    private LineChartVariant PlaygroundVariant { get; set; } = LineChartVariant.Line;
+    private LineInterpolationMode PlaygroundInterpolation { get; set; } = LineInterpolationMode.Smooth;
+    private LinePointDisplayMode PlaygroundPointDisplayMode { get; set; } = LinePointDisplayMode.HighlightedOnly;
+    private bool PlaygroundShowGridLines { get; set; } = true;
+    private bool PlaygroundShowAxisLabels { get; set; } = true;
+    private bool PlaygroundShowLegend { get; set; } = true;
+    private bool PlaygroundShowTooltip { get; set; } = true;
+    private double PlaygroundCurveTension { get; set; } = 0.85;
+    private double PlaygroundAreaOpacity { get; set; } = 0.18;
+    private int PlaygroundXAxisTickCount { get; set; } = 5;
+    private int PlaygroundYAxisTickCount { get; set; } = 5;
+
+    private void ResetLinePlayground()
+    {
+        PlaygroundVariant = LineChartVariant.Line;
+        PlaygroundInterpolation = LineInterpolationMode.Smooth;
+        PlaygroundPointDisplayMode = LinePointDisplayMode.HighlightedOnly;
+        PlaygroundShowGridLines = true;
+        PlaygroundShowAxisLabels = true;
+        PlaygroundShowLegend = true;
+        PlaygroundShowTooltip = true;
+        PlaygroundCurveTension = 0.85;
+        PlaygroundAreaOpacity = 0.18;
+        PlaygroundXAxisTickCount = 5;
+        PlaygroundYAxisTickCount = 5;
+    }
+
+    private static string GetTrendLabel(TrendPoint point) =>
+        point.Highlight && !string.IsNullOrWhiteSpace(point.Annotation)
+            ? point.Annotation
+            : point.Date.ToString("MMM d", CultureInfo.InvariantCulture);
+
+    private static string GetStepLabel(TrendPoint point) => point.Annotation;
+
+    private static string GetResponseState(double value) =>
+        value switch
+        {
+            >= 3 => "Peak staffing response",
+            >= 2 => "Elevated staffing response",
+            >= 1 => "Normal staffing response",
+            _ => "Quiet coverage period"
+        };
+
+    private string LineChartUsageExample => """
+@using FireCharts.Components
+@using FireCharts.Models
+
+@code {
+    private IReadOnlyList<ServiceTrend> trend =
+    [
+        new(new DateTime(2025, 1, 6), 118, false, null),
+        new(new DateTime(2025, 1, 13), 126, false, null),
+        new(new DateTime(2025, 1, 20), 131, true, "Review queue spike"),
+        new(new DateTime(2025, 1, 27), 129, false, null)
+    ];
+
+    private sealed record ServiceTrend(DateTime Date, double Value, bool Highlight, string? Note);
+}
+
+<FireLineChart TItem="ServiceTrend"
+               Title="Permit application volume"
+               Description="Weekly permit submissions"
+               Items="@trend"
+               XValueSelector="item => LineChartXValue.FromDateTime(item.Date)"
+               YValueSelector="item => item.Value"
+               LabelSelector="item => item.Date.ToString(""MMM d"")"
+               HighlightSelector="item => item.Highlight"
+               Responsive="true"
+               Interpolation="LineInterpolationMode.Smooth">
+    <TooltipTemplate Context="point">
+        <div>@point.X.ToDateTime().ToString("MMM d")</div>
+        <div>@point.Y.ToString("F0") submissions</div>
+        @if (!string.IsNullOrWhiteSpace(point.Item.Note))
+        {
+            <div>@point.Item.Note</div>
+        }
+    </TooltipTemplate>
+</FireLineChart>
+""";
+
+    private IReadOnlyList<ExampleApiItem> LineChartApiItems { get; } =
+    [
+        new("Items or Series", "Pass one list for a simple line, or a list of LineChartSeries<TItem> when you want multiple comparison lines in the same chart."),
+        new("XValueSelector and YValueSelector", "Map each item to its X and Y coordinates. Use LineChartXValue.FromDateTime(...) for time-based axes."),
+        new("Interpolation and CurveTension", "Switch between smooth, linear, and step lines. CurveTension only affects the smooth interpolation mode."),
+        new("PointDisplayMode and HighlightSelector", "Keep the chart visually calm by surfacing only highlighted milestones, or turn on markers for every point."),
+        new("Variant", "Choose between a standard line and an area chart without changing the underlying data shape."),
+        new("ShowLegend, ShowTooltip, XAxisTickCount, and YAxisTickCount", "Tune dashboard density and supporting affordances to match the surrounding layout."),
+        new("@bind-SelectedPoint and TooltipTemplate", "Coordinate chart selection with the rest of your UI and fully customize the hover content when the defaults are not enough.")
+    ];
+
+    private sealed record TrendPoint(DateTime Date, double Value, string Annotation = "", bool Highlight = false, string? Note = null);
+}

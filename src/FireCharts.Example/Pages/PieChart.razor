@@ -1,0 +1,300 @@
+@page "/piechart"
+@using FireCharts.Models
+
+<PageTitle>Pie Chart</PageTitle>
+
+<PageIntro Kicker="Radial composition"
+           Title="Pie charts work best when interaction helps the reader parse the proportions."
+           Description="The same typed, Blazor-owned interaction model now powers a radial chart: slices can be hovered, focused, selected, and described without handing the DOM to JavaScript." />
+
+<section class="chart-grid">
+    <ChartDemoCard Kicker="Category share"
+                   Title="Campaign mix overlay"
+                   Description="A standard pie with boxed overlay labels and no center summary so the proportions stay visually uninterrupted."
+                   WrapInScroll="false">
+        <ChildContent>
+            <FirePieChart TItem="ChannelShare"
+                          Title="Campaign mix overlay"
+                          Description="A pie chart showing campaign mix by channel"
+                          Width="560"
+                          Height="420"
+                          Responsive="true"
+                          Items="@Channels"
+                          ValueSelector="item => item.Value"
+                          LabelSelector="item => item.Label"
+                          ColorSelector="item => item.Color"
+                          LabelMode="PieChartLabelMode.Overlay"
+                          ShowCenterLabel="false"
+                          SelectedItem="@SelectedChannel"
+                          SelectedItemChanged="OnSelectedChannelChanged">
+                <TooltipTemplate Context="point">
+                    <div class="demo-tooltip-title">@point.Label</div>
+                    <div>@point.Value.ToString("F0")% allocation</div>
+                </TooltipTemplate>
+            </FirePieChart>
+        </ChildContent>
+        <FooterContent>
+            <p class="selection-note" role="status" aria-live="polite">
+                @if (SelectedChannel is not null)
+                {
+                    <span><strong>Selected:</strong> @SelectedChannel.Label (@SelectedChannel.Value.ToString("F0")%)</span>
+                }
+                else
+                {
+                    <span>Select a slice to pin its share.</span>
+                }
+            </p>
+        </FooterContent>
+    </ChartDemoCard>
+
+    <ChartDemoCard Kicker="Category share"
+                   Title="Campaign mix key"
+                   Description="The same filled pie can also move its values into a key below the chart for a calmer presentation."
+                   WrapInScroll="false">
+        <ChildContent>
+            <FirePieChart TItem="ChannelShare"
+                          Title="Campaign mix key"
+                          Description="A pie chart showing campaign mix by channel with a legend below"
+                          Width="560"
+                          Height="420"
+                          Responsive="true"
+                          Items="@Channels"
+                          ValueSelector="item => item.Value"
+                          LabelSelector="item => item.Label"
+                          ColorSelector="item => item.Color"
+                          LabelMode="PieChartLabelMode.Legend"
+                          ShowCenterLabel="false" />
+        </ChildContent>
+    </ChartDemoCard>
+
+    <ChartDemoCard Kicker="Donut variation"
+                   Title="Support mix overlay"
+                   Description="A donut version with the same boxed overlay labels for a more expressive, presentation-style treatment."
+                   Compact="true"
+                   WrapInScroll="false">
+        <ChildContent>
+            <FirePieChart TItem="SupportShare"
+                          Title="Support mix overlay"
+                          Description="A donut chart showing support requests by topic"
+                          Width="420"
+                          Height="360"
+                          Responsive="true"
+                          Items="@SupportTopics"
+                          ValueSelector="item => item.Value"
+                          LabelSelector="item => item.Label"
+                          ColorSelector="item => item.Color"
+                          LabelMode="PieChartLabelMode.Overlay"
+                          InnerRadiusRatio="0.46"
+                          ShowCenterLabel="false" />
+        </ChildContent>
+    </ChartDemoCard>
+
+    <ChartDemoCard Kicker="Donut variation"
+                   Title="Support mix key"
+                   Description="This option uses a bottom key so the donut stays visually clean while the values remain easy to compare."
+                   Compact="true"
+                   WrapInScroll="false">
+        <ChildContent>
+            <FirePieChart TItem="SupportShare"
+                          Title="Support mix key"
+                          Description="A donut chart showing support requests by topic with a legend below"
+                          Width="420"
+                          Height="360"
+                          Responsive="true"
+                          Items="@SupportTopics"
+                          ValueSelector="item => item.Value"
+                          LabelSelector="item => item.Label"
+                          ColorSelector="item => item.Color"
+                          LabelMode="PieChartLabelMode.Legend"
+                          InnerRadiusRatio="0.46"
+                          ShowCenterLabel="false" />
+        </ChildContent>
+    </ChartDemoCard>
+
+    <ChartDemoCard Kicker="Interactive playground"
+                   Title="Tune the pie chart"
+                   Description="Flip between overlay labels and a legend, turn the pie into a donut, and tune how much motion and labeling you want."
+                   WrapInScroll="false">
+        <ChildContent>
+            <div class="playground-layout">
+                <div class="playground-canvas">
+                    <FirePieChart TItem="ChannelShare"
+                                  Title="Interactive Campaign Mix"
+                                  Description="A configurable pie chart for trying chart settings"
+                                  Width="560"
+                                  Height="400"
+                                  Responsive="true"
+                                  Items="@Channels"
+                                  ValueSelector="item => item.Value"
+                                  LabelSelector="item => item.Label"
+                                  ColorSelector="item => item.Color"
+                                  ShowSliceLabels="@PlaygroundShowSliceLabels"
+                                  LabelMode="@PlaygroundLabelMode"
+                                  ShowTooltip="@PlaygroundShowTooltip"
+                                  ShowCenterLabel="@PlaygroundShowCenterLabel"
+                                  InnerRadiusRatio="@PlaygroundInnerRadiusRatio"
+                                  MinimumLabelPercentage="@PlaygroundMinimumLabelPercentage"
+                                  ActiveOffset="@PlaygroundActiveOffset"
+                                  CenterLabelTitle="Mix" />
+                </div>
+
+                <div class="playground-panel">
+                    <div class="playground-panel__header">
+                        <div>
+                            <p class="section-kicker">Controls</p>
+                            <h3>Pie options</h3>
+                        </div>
+                        <button type="button" class="button-link playground-reset" @onclick="ResetPiePlayground">Reset</button>
+                    </div>
+
+                    <div class="control-grid">
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundShowSliceLabels" />
+                            <span>Show labels</span>
+                        </label>
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundShowTooltip" />
+                            <span>Show tooltip</span>
+                        </label>
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundShowCenterLabel" />
+                            <span>Show center label</span>
+                        </label>
+
+                        <label class="control-select">
+                            <span>Label mode</span>
+                            <select @bind="PlaygroundLabelMode">
+                                <option value="@PieChartLabelMode.Overlay">Overlay</option>
+                                <option value="@PieChartLabelMode.Legend">Legend</option>
+                            </select>
+                        </label>
+
+                        <label class="control-field">
+                            <span>Inner radius</span>
+                            <input type="range" min="0" max="0.65" step="0.01" @bind="PlaygroundInnerRadiusRatio" @bind:event="oninput" />
+                            <strong>@PlaygroundInnerRadiusRatio.ToString("0.00")</strong>
+                        </label>
+
+                        <label class="control-field">
+                            <span>Active offset</span>
+                            <input type="range" min="0" max="18" step="1" @bind="PlaygroundActiveOffset" @bind:event="oninput" />
+                            <strong>@PlaygroundActiveOffset.ToString("0") px</strong>
+                        </label>
+
+                        <label class="control-field">
+                            <span>Minimum label share</span>
+                            <input type="range" min="0.03" max="0.2" step="0.01" @bind="PlaygroundMinimumLabelPercentage" @bind:event="oninput" />
+                            <strong>@PlaygroundMinimumLabelPercentage.ToString("P0")</strong>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </ChildContent>
+    </ChartDemoCard>
+ </section>
+
+<ExampleDocsSection Title="Pie chart code examples"
+                    Description="The pie chart follows the same typed API as the bar chart, so the mental model stays consistent across chart types."
+                    CodeTitle="Render a pie or donut chart"
+                    CodeDescription="Set selectors, enable responsiveness, and optionally turn it into a donut with an inner radius."
+                    CodeExample="@PieChartUsageExample"
+                    ApiTitle="Most useful parameters"
+                    ApiDescription="These cover most real-world usage without needing a custom renderer."
+                    ApiItems="@PieChartApiItems" />
+
+@code {
+    private ChannelShare? SelectedChannel { get; set; }
+
+    private IReadOnlyList<ChannelShare> Channels { get; } =
+    [
+        new("Search", 34, "#d94f3d"),
+        new("Email", 24, "#e79b21"),
+        new("Social", 18, "#198f8c"),
+        new("Events", 14, "#8a7cf6"),
+        new("Direct", 10, "#4d89ff")
+    ];
+
+    private IReadOnlyList<SupportShare> SupportTopics { get; } =
+    [
+        new("Billing", 38, "#d94f3d"),
+        new("Permits", 27, "#198f8c"),
+        new("Scheduling", 21, "#e79b21"),
+        new("Inspections", 14, "#8a7cf6")
+    ];
+
+    private bool PlaygroundShowSliceLabels { get; set; } = true;
+    private bool PlaygroundShowTooltip { get; set; } = true;
+    private bool PlaygroundShowCenterLabel { get; set; } = true;
+    private PieChartLabelMode PlaygroundLabelMode { get; set; } = PieChartLabelMode.Overlay;
+    private double PlaygroundInnerRadiusRatio { get; set; } = 0.18;
+    private double PlaygroundActiveOffset { get; set; } = 10;
+    private double PlaygroundMinimumLabelPercentage { get; set; } = 0.08;
+
+    private Task OnSelectedChannelChanged(ChannelShare? item)
+    {
+        SelectedChannel = item;
+        return Task.CompletedTask;
+    }
+
+    private void ResetPiePlayground()
+    {
+        PlaygroundShowSliceLabels = true;
+        PlaygroundShowTooltip = true;
+        PlaygroundShowCenterLabel = true;
+        PlaygroundLabelMode = PieChartLabelMode.Overlay;
+        PlaygroundInnerRadiusRatio = 0.18;
+        PlaygroundActiveOffset = 10;
+        PlaygroundMinimumLabelPercentage = 0.08;
+    }
+
+    private string PieChartUsageExample => """
+@using FireCharts.Components
+
+@code {
+    private AllocationPoint? selectedSlice;
+
+    private IReadOnlyList<AllocationPoint> allocation =
+    [
+        new("Search", 34, "#d94f3d"),
+        new("Email", 24, "#e79b21"),
+        new("Social", 18, "#198f8c"),
+        new("Events", 14, "#8a7cf6")
+    ];
+
+    private sealed record AllocationPoint(string Label, double Value, string Color);
+}
+
+<FirePieChart TItem="AllocationPoint"
+              Title="Marketing allocation"
+              Description="Channel budget share"
+              Items="@allocation"
+              ValueSelector="item => item.Value"
+              LabelSelector="item => item.Label"
+              ColorSelector="item => item.Color"
+              Responsive="true"
+              InnerRadiusRatio="0.42"
+              LabelMode="PieChartLabelMode.Overlay"
+              ShowCenterLabel="false"
+              @bind-SelectedItem="selectedSlice">
+    <TooltipTemplate Context="point">
+        <div>@point.Label</div>
+        <div>@point.Percentage.ToString("P0") of total</div>
+    </TooltipTemplate>
+</FirePieChart>
+""";
+
+    private IReadOnlyList<ExampleApiItem> PieChartApiItems { get; } =
+    [
+        new("Items", "The slices to render after zero and invalid values are filtered out."),
+        new("ValueSelector and LabelSelector", "Map each item to the slice size and accessible label text."),
+        new("@bind-SelectedItem", "Lets selection stay in sync with the rest of your UI."),
+        new("InnerRadiusRatio", "Set this above 0 to render a donut chart instead of a full pie."),
+        new("LabelMode", "Choose between boxed overlay labels on the slices or a legend/key rendered below the chart."),
+        new("ShowCenterLabel and CenterLabelTitle", "Optionally add a summary label in the center when you want a stronger focal point."),
+        new("TooltipTemplate and PointLabelTemplate", "Customize hover content and on-slice labeling when the default percentage display is not enough.")
+    ];
+
+    private sealed record ChannelShare(string Label, double Value, string Color);
+
+    private sealed record SupportShare(string Label, double Value, string Color);
+}

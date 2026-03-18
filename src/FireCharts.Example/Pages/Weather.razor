@@ -1,0 +1,80 @@
+﻿@page "/weather"
+@inject HttpClient Http
+
+<PageTitle>Weather</PageTitle>
+
+<section class="page-section">
+    <div class="section-heading">
+        <p class="section-kicker">Tabular data</p>
+        <h1>Readable tables can feel polished without hiding structure.</h1>
+        <p class="section-lede">This sample keeps the semantic HTML table intact while adding a clearer visual hierarchy and supportive context.</p>
+    </div>
+
+    <div class="stat-strip" aria-label="Table strengths">
+        <div class="stat-pill"><strong>Semantic</strong><span>Native table roles and header labels</span></div>
+        <div class="stat-pill"><strong>Contrast</strong><span>Soft surfaces with strong text color</span></div>
+        <div class="stat-pill"><strong>Scanning</strong><span>Row dividers and aligned numeric columns</span></div>
+    </div>
+</section>
+
+@if (forecasts == null)
+{
+    <div class="callout-card" role="status" aria-live="polite">
+        <p class="metric-label">Loading forecast</p>
+        <p class="section-lede">Fetching sample weather data for the table view.</p>
+    </div>
+}
+else
+{
+    <section class="table-card">
+        <div class="table-card__header">
+            <div>
+                <p class="section-kicker">5-day outlook</p>
+                <h2>Weather snapshot</h2>
+            </div>
+            <p class="table-card__summary">The table maintains a clear reading order and puts numeric values on predictable columns for quick comparison.</p>
+        </div>
+
+        <table class="table table-modern">
+            <thead>
+                <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col" aria-label="Temperature in Celsius">Temp. (C)</th>
+                    <th scope="col" aria-label="Temperature in Fahrenheit">Temp. (F)</th>
+                    <th scope="col">Summary</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var forecast in forecasts)
+                {
+                    <tr>
+                        <td>@forecast.Date.ToShortDateString()</td>
+                        <td class="numeric-cell">@forecast.TemperatureC</td>
+                        <td class="numeric-cell">@forecast.TemperatureF</td>
+                        <td>@forecast.Summary</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+}
+
+@code {
+    private WeatherForecast[]? forecasts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        forecasts = await Http.GetFromJsonAsync<WeatherForecast[]>("sample-data/weather.json");
+    }
+
+    public class WeatherForecast
+    {
+        public DateOnly Date { get; set; }
+
+        public int TemperatureC { get; set; }
+
+        public string? Summary { get; set; }
+
+        public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+    }
+}

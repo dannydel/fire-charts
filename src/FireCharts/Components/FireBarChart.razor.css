@@ -1,0 +1,126 @@
+.fire-bar-chart {
+    font-family: var(--font-sans, "Avenir Next", "Segoe UI", sans-serif);
+    overflow: visible;
+}
+
+.fire-bar-chart-host {
+    max-width: 100%;
+}
+
+.grid-line {
+    stroke: var(--color-chart-grid, #cdb9aa);
+    stroke-width: 1;
+    stroke-dasharray: 3 4;
+}
+
+.axis-line {
+    stroke: var(--color-chart-axis, #4a3943);
+    stroke-width: 1.4;
+}
+
+.axis-label {
+    font-size: 12px;
+    font-weight: 600;
+    fill: #463941;
+    paint-order: stroke;
+    stroke: rgba(255, 253, 250, 0.92);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+}
+
+.bar-series {
+    isolation: isolate;
+}
+
+.bar-group {
+    outline: none;
+}
+
+.bar-rect {
+    fill: var(--bar-color);
+    transform-box: fill-box;
+    transform-origin: center bottom;
+    transition:
+        fill 180ms cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 180ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 260ms cubic-bezier(0.22, 1, 0.36, 1),
+        stroke 180ms cubic-bezier(0.22, 1, 0.36, 1),
+        filter 260ms cubic-bezier(0.22, 1, 0.36, 1);
+    cursor: pointer;
+}
+
+.bar-group.is-hovered .bar-rect,
+.bar-group.is-focused .bar-rect {
+    fill: var(--bar-hover-color);
+    transform: translateY(-2px);
+    filter: drop-shadow(0 8px 14px rgba(32, 26, 31, 0.1));
+}
+
+.bar-group.is-focused .bar-rect,
+.bar-group.is-selected .bar-rect {
+    stroke: rgba(32, 26, 31, 0.86);
+    stroke-width: 2;
+}
+
+.bar-group.is-selected .bar-rect {
+    opacity: 0.96;
+    transform: translateY(-1px);
+    filter: drop-shadow(0 10px 18px rgba(32, 26, 31, 0.12));
+}
+
+.bar-group:active .bar-rect {
+    transform: translateY(0);
+}
+
+.bar-value {
+    font-size: 11px;
+    font-weight: 700;
+    fill: #201a1f;
+    paint-order: stroke;
+    stroke: rgba(255, 253, 250, 0.92);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+    pointer-events: none;
+}
+
+.chart-tooltip {
+    position: absolute;
+    transform: translate(-50%, calc(-100% - 8px));
+    background: rgba(32, 26, 31, 0.96);
+    color: #fff8f2;
+    padding: 0.65rem 0.8rem;
+    border: 1px solid rgba(255, 179, 71, 0.18);
+    border-radius: 0.85rem;
+    box-shadow: 0 14px 28px rgba(18, 24, 29, 0.18);
+    font-size: 0.85rem;
+    line-height: 1.3;
+    white-space: nowrap;
+}
+
+.tooltip-label {
+    font-weight: 600;
+}
+
+.tooltip-value {
+    opacity: 0.82;
+}
+
+.empty-state {
+    fill: var(--color-text-soft, #5d5058);
+    font-size: 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bar-rect {
+        transition: fill 0.01ms linear, stroke 0.01ms linear;
+    }
+
+    .bar-group.is-hovered .bar-rect,
+    .bar-group.is-focused .bar-rect,
+    .bar-group.is-selected .bar-rect,
+    .bar-group:active .bar-rect {
+        transform: none;
+        filter: none;
+        animation: none;
+    }
+}

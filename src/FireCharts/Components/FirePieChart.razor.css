@@ -1,0 +1,268 @@
+.fire-pie-chart-shell {
+    display: grid;
+    gap: 1rem;
+}
+
+.fire-pie-chart {
+    font-family: "Avenir Next", "Segoe UI", sans-serif;
+    overflow: visible;
+}
+
+.fire-pie-chart-host {
+    max-width: 100%;
+}
+
+.pie-guide-ring {
+    fill: rgba(255, 255, 255, 0.55);
+    stroke: rgba(60, 43, 35, 0.08);
+    stroke-width: 1;
+}
+
+.pie-slice-group {
+    outline: none;
+    transition: transform 520ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.pie-slice {
+    fill: var(--slice-color);
+    stroke: rgba(255, 253, 250, 0.95);
+    stroke-width: 2;
+    transform-box: fill-box;
+    transform-origin: center;
+    transition:
+        fill 340ms cubic-bezier(0.16, 1, 0.3, 1),
+        transform 520ms cubic-bezier(0.16, 1, 0.3, 1),
+        opacity 300ms cubic-bezier(0.16, 1, 0.3, 1),
+        stroke 340ms cubic-bezier(0.16, 1, 0.3, 1),
+        filter 520ms cubic-bezier(0.16, 1, 0.3, 1);
+    cursor: pointer;
+}
+
+.pie-slice-group.is-hovered .pie-slice,
+.pie-slice-group.is-focused .pie-slice {
+    fill: var(--slice-hover-color);
+    transform: scale(1.016);
+    filter: drop-shadow(0 12px 18px rgba(32, 26, 31, 0.13));
+}
+
+.pie-slice-group.is-selected .pie-slice,
+.pie-slice-group.is-focused .pie-slice {
+    stroke: #1f1721;
+    stroke-width: 2.4;
+}
+
+.pie-slice-group.is-selected .pie-slice {
+    transform: scale(1.02);
+    filter: drop-shadow(0 14px 20px rgba(32, 26, 31, 0.14));
+}
+
+.pie-slice-group:active .pie-slice {
+    transform: scale(1.002);
+}
+
+.fire-pie-chart-shell--donut .pie-slice {
+    transition:
+        fill 340ms cubic-bezier(0.16, 1, 0.3, 1),
+        opacity 300ms cubic-bezier(0.16, 1, 0.3, 1),
+        stroke 340ms cubic-bezier(0.16, 1, 0.3, 1),
+        filter 460ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.fire-pie-chart-shell--donut .pie-slice-group.is-hovered .pie-slice,
+.fire-pie-chart-shell--donut .pie-slice-group.is-focused .pie-slice,
+.fire-pie-chart-shell--donut .pie-slice-group.is-selected .pie-slice,
+.fire-pie-chart-shell--donut .pie-slice-group:active .pie-slice {
+    transform: none;
+}
+
+.fire-pie-chart-shell--donut .pie-slice-group.is-hovered .pie-slice,
+.fire-pie-chart-shell--donut .pie-slice-group.is-focused .pie-slice {
+    filter: drop-shadow(0 10px 16px rgba(32, 26, 31, 0.12));
+}
+
+.fire-pie-chart-shell--donut .pie-slice-group.is-selected .pie-slice {
+    filter: drop-shadow(0 12px 18px rgba(32, 26, 31, 0.13));
+}
+
+.pie-slice-label,
+.pie-slice-value,
+.pie-slice-label-box__label,
+.pie-slice-label-box__value {
+    pointer-events: none;
+    paint-order: stroke;
+}
+
+.pie-slice-label,
+.pie-slice-label-box__label {
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.pie-slice-value,
+.pie-slice-label-box__value {
+    font-size: 11px;
+    opacity: 0.82;
+}
+
+.pie-slice-label-box__surface {
+    fill: rgba(255, 248, 242, 0.92);
+    stroke: rgba(143, 58, 36, 0.22);
+    stroke-width: 1.35;
+    filter: drop-shadow(0 10px 18px rgba(32, 26, 31, 0.12));
+}
+
+.pie-slice-label-box__label {
+    fill: #201a1f;
+    font-weight: 800;
+    opacity: 1;
+}
+
+.pie-slice-label-box__value {
+    fill: #8f3a24;
+    font-weight: 800;
+    opacity: 1;
+}
+
+.pie-slice-label--light,
+.pie-slice-value--light {
+    fill: #fffdfa;
+    stroke: rgba(31, 23, 33, 0.28);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+}
+
+.pie-slice-label--dark,
+.pie-slice-value--dark {
+    fill: #201a1f;
+    stroke: rgba(255, 253, 250, 0.72);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+}
+
+.pie-center-label__eyebrow {
+    fill: #6b5962;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.pie-center-label__eyebrow--over-slice {
+    fill: #fff8f2;
+    paint-order: stroke;
+    stroke: rgba(31, 23, 33, 0.38);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+}
+
+.pie-center-label__surface,
+.pie-center-label__surface-inner {
+    pointer-events: none;
+}
+
+.pie-center-label__surface {
+    fill: rgba(255, 252, 248, 0.96);
+    stroke: rgba(53, 37, 42, 0.12);
+    stroke-width: 1.25;
+    filter: drop-shadow(0 10px 24px rgba(32, 26, 31, 0.12));
+}
+
+.pie-center-label__surface-inner {
+    fill: rgba(255, 244, 237, 0.92);
+    stroke: rgba(255, 255, 255, 0.7);
+    stroke-width: 1;
+}
+
+.pie-center-label__value {
+    fill: #1f1721;
+    font-size: 30px;
+    font-weight: 800;
+}
+
+.pie-center-label__value--over-slice {
+    fill: #fffdfa;
+    paint-order: stroke;
+    stroke: rgba(31, 23, 33, 0.44);
+    stroke-width: 5px;
+    stroke-linejoin: round;
+}
+
+.pie-legend {
+    display: grid;
+    gap: 0.65rem;
+}
+
+.pie-legend__item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.8rem 0.95rem;
+    border: 1px solid rgba(48, 32, 39, 0.1);
+    border-radius: 1rem;
+    background: rgba(255, 252, 248, 0.82);
+    transition:
+        transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        box-shadow 300ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        border-color 220ms cubic-bezier(0.22, 1, 0.36, 1),
+        background-color 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pie-legend__item.is-active {
+    border-color: rgba(143, 58, 36, 0.18);
+    background: rgba(255, 247, 240, 0.9);
+}
+
+.pie-legend__item.is-selected {
+    transform: translateY(-2px);
+    border-color: rgba(143, 58, 36, 0.32);
+    background: rgba(255, 244, 235, 0.96);
+    box-shadow: 0 12px 24px rgba(32, 26, 31, 0.12);
+}
+
+.pie-legend__swatch {
+    width: 0.9rem;
+    height: 0.9rem;
+    border-radius: 999px;
+    background: var(--legend-color);
+    box-shadow: inset 0 0 0 1px rgba(32, 26, 31, 0.08);
+}
+
+.pie-legend__label {
+    min-width: 0;
+    color: #201a1f;
+    font-weight: 700;
+}
+
+.pie-legend__value,
+.pie-legend__percent {
+    color: #5d5058;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+}
+
+@media (max-width: 640.98px) {
+    .pie-legend__item {
+        grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+
+    .pie-legend__percent {
+        grid-column: 2 / 4;
+        justify-self: end;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pie-slice {
+        transition: fill 0.01ms linear, stroke 0.01ms linear;
+    }
+
+    .pie-slice-group.is-hovered .pie-slice,
+    .pie-slice-group.is-focused .pie-slice,
+    .pie-slice-group.is-selected .pie-slice,
+    .pie-slice-group:active .pie-slice {
+        transform: none;
+        filter: none;
+        animation: none;
+    }
+}

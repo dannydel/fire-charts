@@ -1,0 +1,19 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="concept3-bg" x1="20" y1="22" x2="108" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF0E6"/>
+      <stop offset="1" stop-color="#FFE1CF"/>
+    </linearGradient>
+    <linearGradient id="concept3-stroke" x1="42" y1="34" x2="84" y2="86" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F05F3B"/>
+      <stop offset="1" stop-color="#C63D24"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="96" height="96" rx="28" fill="#201A1F"/>
+  <rect x="22" y="22" width="84" height="84" rx="24" fill="url(#concept3-bg)"/>
+  <path d="M42 84V44C42 38.4772 46.4772 34 52 34H84" stroke="url(#concept3-stroke)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M56 48H80" stroke="#201A1F" stroke-width="7" stroke-linecap="round"/>
+  <path d="M56 62H74" stroke="#201A1F" stroke-width="7" stroke-linecap="round"/>
+  <path d="M56 76H68" stroke="#201A1F" stroke-width="7" stroke-linecap="round"/>
+  <path d="M78 34C76.8 39.2 73.6 43.2 69.8 46.4C66.1 49.5 62.7 52.4 62.7 57.4C62.7 63.8 67.7 68.7 74 68.7C81.2 68.7 85.9 63 85.9 56.4C85.9 48.9 81.8 44 78 34Z" fill="#FFB347"/>
+</svg>
