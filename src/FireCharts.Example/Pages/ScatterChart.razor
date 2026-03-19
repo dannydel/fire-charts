@@ -1,0 +1,367 @@
+@page "/scatterchart"
+
+@using System.Globalization
+@using FireCharts.Example.Components
+@using FireCharts.Models
+
+<PageTitle>Scatter Chart</PageTitle>
+
+<PageIntro Kicker="Relationship analysis"
+           Title="Scatter charts let the library speak to correlation, clustering, and outliers instead of only trends and totals."
+           Description="This component keeps the same typed, Blazor-owned interaction model as the rest of FireCharts while opening up an entirely new kind of analysis." />
+
+<section class="chart-grid">
+    <ChartDemoCard Kicker="Correlation"
+                   Title="Station visits vs. response time"
+                   Description="A single-series scatter plot makes it easier to spot outliers than a connected trend line would.">
+        <ChildContent>
+            <FireScatterChart TItem="ResponseCorrelationPoint"
+                              Title="Station visits vs. response time"
+                              Description="Relationship between station visits and average response time"
+                              Width="620"
+                              Height="390"
+                              Responsive="true"
+                              Items="@ResponseCorrelation"
+                              XValueSelector="point => LineChartXValue.FromNumber(point.DailyVisits)"
+                              YValueSelector="point => point.AverageMinutes"
+                              LabelSelector="point => point.Station"
+                              ColorSelector="point => point.Color"
+                              HoverColorSelector="point => point.HoverColor"
+                              SelectedPoint="@SelectedCorrelationPoint"
+                              SelectedPointChanged="OnSelectedCorrelationPointChanged">
+                <TooltipTemplate Context="point">
+                    <div class="demo-tooltip-title">@point.Label</div>
+                    <div>@point.X.NumericValue.ToString("F0", CultureInfo.InvariantCulture) visits</div>
+                    <div>@point.Y.ToString("F1", CultureInfo.InvariantCulture) min average response</div>
+                </TooltipTemplate>
+            </FireScatterChart>
+        </ChildContent>
+        <FooterContent>
+            <p class="selection-note" role="status" aria-live="polite">
+                @if (SelectedCorrelationPoint is not null)
+                {
+                    <span>
+                        <strong>Selected:</strong>
+                        @SelectedCorrelationPoint.Label at @SelectedCorrelationPoint.X.NumericValue.ToString("F0", CultureInfo.InvariantCulture) visits
+                        and @SelectedCorrelationPoint.Y.ToString("F1", CultureInfo.InvariantCulture) minutes
+                    </span>
+                }
+                else
+                {
+                    <span>Select a point to pin a specific outlier or cluster member.</span>
+                }
+            </p>
+        </FooterContent>
+    </ChartDemoCard>
+
+    <ChartDemoCard Kicker="Multi-series"
+                   Title="Permits and inspections by district"
+                   Description="Series coloring and the legend make clustered comparisons readable without connecting the points.">
+        <ChildContent>
+            <FireScatterChart TItem="DistrictRelationshipPoint"
+                              Title="Permits and inspections by district"
+                              Description="Two operational measures compared across districts"
+                              Width="620"
+                              Height="390"
+                              Responsive="true"
+                              Series="@DistrictSeries"
+                              XValueSelector="point => LineChartXValue.FromNumber(point.WeeklyVolume)"
+                              YValueSelector="point => point.SatisfactionScore"
+                              LabelSelector="point => point.District"
+                              ShowLegend="true"
+                              ValueFormat="F1">
+                <TooltipTemplate Context="point">
+                    <div class="demo-tooltip-title">@point.SeriesName</div>
+                    <div>@point.Label</div>
+                    <div>@point.X.NumericValue.ToString("F0", CultureInfo.InvariantCulture) weekly volume</div>
+                    <div>@point.Y.ToString("F1", CultureInfo.InvariantCulture) satisfaction</div>
+                </TooltipTemplate>
+            </FireScatterChart>
+        </ChildContent>
+    </ChartDemoCard>
+
+    <ChartDemoCard Kicker="Date axis"
+                   Title="Incident load by day"
+                   Description="Scatter also works with the existing date-aware x-axis, which is useful for event plotting and irregular time observations."
+                   Compact="true">
+        <ChildContent>
+            <FireScatterChart TItem="IncidentLoadPoint"
+                              Title="Incident load by day"
+                              Description="Daily incident load over a short dispatch window"
+                              Width="420"
+                              Height="330"
+                              Responsive="true"
+                              Items="@IncidentLoad"
+                              XValueSelector="point => LineChartXValue.FromDateTime(point.Date)"
+                              YValueSelector="point => point.OpenIncidents"
+                              LabelSelector="GetIncidentDateLabel"
+                              ColorSelector="point => point.Color"
+                              HoverColorSelector="point => point.HoverColor">
+                <TooltipTemplate Context="point">
+                    <div class="demo-tooltip-title">@point.Label</div>
+                    <div>@point.X.ToDateTime().ToString("MMM d", CultureInfo.InvariantCulture)</div>
+                    <div>@point.Y.ToString("F0", CultureInfo.InvariantCulture) open incidents</div>
+                </TooltipTemplate>
+            </FireScatterChart>
+        </ChildContent>
+    </ChartDemoCard>
+
+    <ChartDemoCard Kicker="Interactive playground"
+                   Title="Add more plots to the scatter chart"
+                   Description="Grow the point cloud, cap the dataset at 100 plots, and tune the basic chart settings without changing the component API."
+                   WrapInScroll="false">
+        <ChildContent>
+            <div class="playground-layout">
+                <div class="playground-canvas">
+                    <div class="chart-scroll">
+                        <FireScatterChart TItem="PlaygroundScatterPoint"
+                                          Title="Interactive service correlation"
+                                          Description="A configurable scatter chart playground"
+                                          Width="680"
+                                          Height="400"
+                                          Responsive="true"
+                                          Items="@PlaygroundPoints"
+                                          XValueSelector="point => LineChartXValue.FromNumber(point.Visits)"
+                                          YValueSelector="point => point.ResponseMinutes"
+                                          LabelSelector="point => point.Label"
+                                          ColorSelector="point => point.Color"
+                                          HoverColorSelector="point => point.HoverColor"
+                                          ShowGridLines="@PlaygroundShowGridLines"
+                                          ShowAxisLabels="@PlaygroundShowAxisLabels"
+                                          ShowTooltip="@PlaygroundShowTooltip"
+                                          MarkerRadius="@PlaygroundMarkerRadius"
+                                          XAxisTickCount="@PlaygroundXAxisTickCount"
+                                          YAxisTickCount="@PlaygroundYAxisTickCount"
+                                          ValueFormat="F1" />
+                    </div>
+                </div>
+
+                <div class="playground-panel">
+                    <div class="playground-panel__header">
+                        <div>
+                            <p class="section-kicker">Controls</p>
+                            <h3>Scatter options</h3>
+                        </div>
+                        <button type="button" class="button-link playground-reset" @onclick="ResetScatterPlayground">Reset</button>
+                    </div>
+
+                    <div class="control-grid">
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundShowGridLines" />
+                            <span>Show grid lines</span>
+                        </label>
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundShowAxisLabels" />
+                            <span>Show axis labels</span>
+                        </label>
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundShowTooltip" />
+                            <span>Show tooltip</span>
+                        </label>
+
+                        <label class="control-field">
+                            <span>Plot count</span>
+                            <input type="range" min="3" max="100" step="1" @bind="PlaygroundPlotCount" @bind:event="oninput" />
+                            <strong>@PlaygroundPlotCount plots</strong>
+                        </label>
+
+                        <div class="control-field">
+                            <span>Quick add</span>
+                            <div class="button-row">
+                                <button type="button" class="button-link" @onclick="AddFivePlots">+5 plots</button>
+                                <button type="button" class="button-link" @onclick="AddTwentyPlots">+20 plots</button>
+                                <button type="button" class="button-link" @onclick="RemoveFivePlots">-5 plots</button>
+                            </div>
+                        </div>
+
+                        <label class="control-field">
+                            <span>Marker radius</span>
+                            <input type="range" min="3" max="10" step="0.5" @bind="PlaygroundMarkerRadius" @bind:event="oninput" />
+                            <strong>@PlaygroundMarkerRadius.ToString("0.0", CultureInfo.InvariantCulture) px</strong>
+                        </label>
+
+                        <label class="control-field">
+                            <span>X-axis ticks</span>
+                            <input type="range" min="2" max="8" step="1" @bind="PlaygroundXAxisTickCount" @bind:event="oninput" />
+                            <strong>@PlaygroundXAxisTickCount</strong>
+                        </label>
+
+                        <label class="control-field">
+                            <span>Y-axis ticks</span>
+                            <input type="range" min="2" max="8" step="1" @bind="PlaygroundYAxisTickCount" @bind:event="oninput" />
+                            <strong>@PlaygroundYAxisTickCount</strong>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </ChildContent>
+    </ChartDemoCard>
+</section>
+
+<ExampleDocsSection Title="Scatter chart code examples"
+                    Description="The scatter chart follows the same selector-first shape as the rest of the library, so it drops into dashboards without a new data model."
+                    CodeTitle="Render a typed scatter chart"
+                    CodeDescription="Map your x and y values, optionally color points, and bind selection when the rest of the UI should react."
+                    CodeExample="@ScatterChartUsageExample"
+                    ApiTitle="Most useful parameters"
+                    ApiDescription="These cover the main v1 scenarios: single series, multi-series, typed tooltips, and responsive layout."
+                    ApiItems="@ScatterChartApiItems" />
+
+@code {
+    private ScatterChartPoint<ResponseCorrelationPoint>? SelectedCorrelationPoint { get; set; }
+
+    private IReadOnlyList<ResponseCorrelationPoint> ResponseCorrelation { get; } =
+    [
+        new("Central", 142, 6.8, "#d94f3d", "#a73728"),
+        new("Harbor", 118, 7.9, "#198f8c", "#11696c"),
+        new("North", 165, 6.1, "#f05f3b", "#bb4328"),
+        new("South", 101, 8.6, "#8a7cf6", "#6257c4"),
+        new("West", 154, 6.4, "#4d89ff", "#245ec7")
+    ];
+
+    private IReadOnlyList<ScatterChartSeries<DistrictRelationshipPoint>> DistrictSeries { get; } =
+    [
+        new("Permits", new[]
+        {
+            new DistrictRelationshipPoint("North", 148, 4.2),
+            new DistrictRelationshipPoint("South", 122, 4.5),
+            new DistrictRelationshipPoint("East", 168, 4.0),
+            new DistrictRelationshipPoint("West", 133, 4.7)
+        }, "#d94f3d", HoverColor: "#8f2f1a", MarkerRadius: 5.2),
+        new("Inspections", new[]
+        {
+            new DistrictRelationshipPoint("North", 176, 4.4),
+            new DistrictRelationshipPoint("South", 145, 4.8),
+            new DistrictRelationshipPoint("East", 191, 4.1),
+            new DistrictRelationshipPoint("West", 154, 4.6)
+        }, "#198f8c", HoverColor: "#11696c", MarkerRadius: 5.2)
+    ];
+
+    private IReadOnlyList<IncidentLoadPoint> IncidentLoad { get; } =
+    [
+        new(new DateTime(2026, 2, 10), 18, "#d94f3d", "#a73728"),
+        new(new DateTime(2026, 2, 11), 23, "#e79b21", "#b87414"),
+        new(new DateTime(2026, 2, 12), 16, "#198f8c", "#11696c"),
+        new(new DateTime(2026, 2, 13), 27, "#4d89ff", "#245ec7"),
+        new(new DateTime(2026, 2, 14), 19, "#8a7cf6", "#6257c4")
+    ];
+
+    private bool PlaygroundShowGridLines { get; set; } = true;
+    private bool PlaygroundShowAxisLabels { get; set; } = true;
+    private bool PlaygroundShowTooltip { get; set; } = true;
+    private int PlaygroundPlotCount { get; set; } = 18;
+    private double PlaygroundMarkerRadius { get; set; } = 4.8;
+    private int PlaygroundXAxisTickCount { get; set; } = 5;
+    private int PlaygroundYAxisTickCount { get; set; } = 5;
+
+    private IReadOnlyList<PlaygroundScatterPoint> PlaygroundPoints =>
+        Enumerable.Range(0, PlaygroundPlotCount)
+            .Select(CreatePlaygroundPoint)
+            .ToArray();
+
+    private Task OnSelectedCorrelationPointChanged(ScatterChartPoint<ResponseCorrelationPoint>? point)
+    {
+        SelectedCorrelationPoint = point;
+        return Task.CompletedTask;
+    }
+
+    private static string GetIncidentDateLabel(IncidentLoadPoint point) =>
+        point.Date.ToString("MMM d", CultureInfo.InvariantCulture);
+
+    private void AddFivePlots() => PlaygroundPlotCount = Math.Min(100, PlaygroundPlotCount + 5);
+
+    private void AddTwentyPlots() => PlaygroundPlotCount = Math.Min(100, PlaygroundPlotCount + 20);
+
+    private void RemoveFivePlots() => PlaygroundPlotCount = Math.Max(3, PlaygroundPlotCount - 5);
+
+    private void ResetScatterPlayground()
+    {
+        PlaygroundShowGridLines = true;
+        PlaygroundShowAxisLabels = true;
+        PlaygroundShowTooltip = true;
+        PlaygroundPlotCount = 18;
+        PlaygroundMarkerRadius = 4.8;
+        PlaygroundXAxisTickCount = 5;
+        PlaygroundYAxisTickCount = 5;
+    }
+
+    private static PlaygroundScatterPoint CreatePlaygroundPoint(int index)
+    {
+        var visitNoise = NextPseudoRandom(index, 11);
+        var responseNoise = NextPseudoRandom(index, 29);
+        var clusterBias = index % 4;
+        var visits = 68 + (index * 1.9) + (clusterBias * 9.5) + (visitNoise * 34);
+        var responseMinutes = 9.8 - (index * 0.035) + ((clusterBias - 1.5) * 0.48) + ((responseNoise - 0.5) * 2.6);
+        var paletteIndex = (index + (int)Math.Floor(visitNoise * 7)) % 5;
+
+        return new PlaygroundScatterPoint(
+            $"Plot {index + 1}",
+            Math.Round(visits, 1),
+            Math.Round(Math.Clamp(responseMinutes, 2.6, 10.8), 1),
+            paletteIndex switch
+            {
+                0 => "#d94f3d",
+                1 => "#198f8c",
+                2 => "#e79b21",
+                3 => "#4d89ff",
+                _ => "#8a7cf6"
+            },
+            paletteIndex switch
+            {
+                0 => "#a73728",
+                1 => "#11696c",
+                2 => "#b87414",
+                3 => "#245ec7",
+                _ => "#6257c4"
+            });
+    }
+
+    private static double NextPseudoRandom(int index, int salt)
+    {
+        var value = Math.Sin((index + 1) * 12.9898 + salt * 78.233) * 43758.5453;
+        return value - Math.Floor(value);
+    }
+
+    private string ScatterChartUsageExample => """
+@using FireCharts.Components
+@using FireCharts.Models
+
+@code {
+    private ScatterChartPoint<ServicePoint>? selectedPoint;
+
+    private IReadOnlyList<ServicePoint> services =
+    [
+        new("North", 142, 6.8, "#d94f3d", "#a73728"),
+        new("South", 101, 8.6, "#198f8c", "#11696c"),
+        new("West", 154, 6.4, "#4d89ff", "#245ec7")
+    ];
+}
+
+<FireScatterChart TItem="ServicePoint"
+                  Title="Service relationship"
+                  Description="Daily visits compared to average response time"
+                  Responsive="true"
+                  Items="@services"
+                  XValueSelector="item => LineChartXValue.FromNumber(item.Visits)"
+                  YValueSelector="item => item.ResponseMinutes"
+                  LabelSelector="item => item.Name"
+                  ColorSelector="item => item.Color"
+                  HoverColorSelector="item => item.HoverColor"
+                  @bind-SelectedPoint="selectedPoint" />
+""";
+
+    private IReadOnlyList<ExampleApiItem> ScatterChartApiItems { get; } =
+    [
+        new("Items / Series", "Use Items for a single-series plot or Series when you need a legend and separate colors."),
+        new("XValueSelector", "Maps each item to a numeric or DateTime X value using LineChartXValue."),
+        new("YValueSelector", "Maps the numeric Y value that determines vertical position."),
+        new("ColorSelector", "Optional per-point color override for single-series charts."),
+        new("TooltipTemplate", "Render richer point details without giving up the built-in tooltip positioning."),
+        new("SelectedPoint", "Bind the selected point when the rest of the page should react to a chosen observation.")
+    ];
+
+    private sealed record ResponseCorrelationPoint(string Station, double DailyVisits, double AverageMinutes, string Color, string HoverColor);
+    private sealed record DistrictRelationshipPoint(string District, double WeeklyVolume, double SatisfactionScore);
+    private sealed record IncidentLoadPoint(DateTime Date, double OpenIncidents, string Color, string HoverColor);
+    private sealed record PlaygroundScatterPoint(string Label, double Visits, double ResponseMinutes, string Color, string HoverColor);
+}

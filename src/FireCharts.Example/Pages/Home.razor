@@ -25,6 +25,7 @@
             <a class="button-link button-link--primary" href="linechart">See line chart demos</a>
             <a class="button-link" href="barchart">See bar chart demos</a>
             <a class="button-link" href="piechart">See pie chart demos</a>
+            <a class="button-link" href="scatterchart">See scatter chart demos</a>
         </div>
 
         <div class="home-hero__stats" aria-label="Library highlights">
@@ -101,7 +102,7 @@
 <section class="home-showcase">
     <div class="section-heading">
         <p class="section-kicker">Component showcase</p>
-        <h2>Three chart types, each presented like a polished product feature.</h2>
+        <h2>Four chart types, each presented like a polished product feature.</h2>
         <p class="section-lede">
             The homepage now introduces the library through compact, high-signal examples and a short explanation of
             where each component shines.
@@ -188,6 +189,39 @@
                 <div class="home-card-footer">
                     <span class="home-chip">Pie or donut styling</span>
                     <span class="home-chip">Overlay or legend labels</span>
+                </div>
+            </FooterContent>
+        </ChartDemoCard>
+
+        <ChartDemoCard Kicker="Scatter chart"
+                       Title="Relationship analysis without forced trend lines"
+                       Description="Scatter charts are ideal for correlation, outliers, and clusters when connecting the points would imply a story the data is not telling."
+                       Compact="true">
+            <ChildContent>
+                <FireScatterChart TItem="MiniScatterPoint"
+                                  Title="Incident load vs. response time"
+                                  Description="Relationship between incident load and average response time"
+                                  Width="420"
+                                  Height="320"
+                                  Responsive="true"
+                                  Items="@MiniScatter"
+                                  XValueSelector="point => LineChartXValue.FromNumber(point.Volume)"
+                                  YValueSelector="point => point.ResponseMinutes"
+                                  LabelSelector="point => point.Label"
+                                  ColorSelector="point => point.Color"
+                                  HoverColorSelector="point => point.HoverColor"
+                                  ShowLegend="false">
+                    <TooltipTemplate Context="point">
+                        <div class="demo-tooltip-title">@point.Label</div>
+                        <div>@point.X.NumericValue.ToString("F0", CultureInfo.InvariantCulture) incidents</div>
+                        <div>@point.Y.ToString("F1", CultureInfo.InvariantCulture) min response</div>
+                    </TooltipTemplate>
+                </FireScatterChart>
+            </ChildContent>
+            <FooterContent>
+                <div class="home-card-footer">
+                    <span class="home-chip">Numeric or date x-axis</span>
+                    <span class="home-chip">Single-series or legend-driven multi-series</span>
                 </div>
             </FooterContent>
         </ChartDemoCard>
@@ -286,6 +320,15 @@
         new("Walk-in", 16, "#8a7cf6")
     ];
 
+    private IReadOnlyList<MiniScatterPoint> MiniScatter { get; } =
+    [
+        new("North", 118, 7.2, "#d94f3d", "#a73728"),
+        new("South", 96, 8.1, "#198f8c", "#11696c"),
+        new("East", 141, 6.4, "#e79b21", "#b87414"),
+        new("West", 127, 6.8, "#4d89ff", "#245ec7"),
+        new("Central", 156, 6.1, "#8a7cf6", "#6257c4")
+    ];
+
     private string HomeUsageExample => """
 @using FireCharts.Components
 @using FireCharts.Models
@@ -305,4 +348,5 @@
     private sealed record MiniTrendPoint(DateTime Date, double Value, string Label, bool Highlight);
     private sealed record MiniBarPoint(string Label, double Value, string Color, string HoverColor);
     private sealed record MiniSlice(string Label, double Value, string Color);
+    private sealed record MiniScatterPoint(string Label, double Volume, double ResponseMinutes, string Color, string HoverColor);
 }

@@ -96,6 +96,7 @@
                                              Horizontal="@PlaygroundHorizontal"
                                              LegendPlacement="@PlaygroundLegendPlacement"
                                              BarWidthRatio="@PlaygroundBarWidthRatio"
+                                             CornerRadius="@PlaygroundCornerRadius"
                                              ShowLegend="@PlaygroundShowLegend"
                                              ShowTooltip="@PlaygroundShowTooltip" />
                     </div>
@@ -128,6 +129,12 @@
                             <span>Bar width ratio</span>
                             <input type="range" min="0.1" max="1" step="0.05" @bind="PlaygroundBarWidthRatio" @bind:event="oninput" />
                             <strong>@PlaygroundBarWidthRatio.ToString("0.00")</strong>
+                        </label>
+
+                        <label class="control-field">
+                            <span>Segment radius</span>
+                            <input type="range" min="0" max="12" step="1" @bind="PlaygroundCornerRadius" @bind:event="oninput" />
+                            <strong>@PlaygroundCornerRadius.ToString("0", CultureInfo.InvariantCulture) px</strong>
                         </label>
 
                         <label class="control-select">
@@ -188,6 +195,7 @@
     private bool PlaygroundShowLegend { get; set; } = true;
     private bool PlaygroundShowTooltip { get; set; } = true;
     private double PlaygroundBarWidthRatio { get; set; } = 0.72;
+    private double PlaygroundCornerRadius { get; set; } = 3;
     private ChartLegendPlacement PlaygroundLegendPlacement { get; set; } = ChartLegendPlacement.End;
 
     private Task OnSelectedStationChanged(StationStack? item)
@@ -202,6 +210,7 @@
         PlaygroundShowLegend = true;
         PlaygroundShowTooltip = true;
         PlaygroundBarWidthRatio = 0.72;
+        PlaygroundCornerRadius = 3;
         PlaygroundLegendPlacement = ChartLegendPlacement.End;
     }
 
@@ -243,6 +252,7 @@
         new("SegmentValueSelector", "Provides the numeric segment contribution used in stack totals and geometry."),
         new("LegendPlacement", "Moves the segment legend to the top, bottom, left, right, start, or end of the chart shell."),
         new("BarWidthRatio", "Controls how much of each category slot is occupied by the rendered bar."),
+        new("CornerRadius", "Rounds each stacked segment so the chart can look sharper or softer depending on the surface."),
         new("ChartContentTemplate", "Lets you inject aligned SVG lines, markers, or labels inside the chart area.")
     ];
 

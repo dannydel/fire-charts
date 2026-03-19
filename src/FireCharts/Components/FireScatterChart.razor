@@ -1,0 +1,167 @@
+@namespace FireCharts.Components
+@typeparam TItem
+@using System.Globalization
+@using Microsoft.AspNetCore.Components.Web
+@using FireCharts.Models
+
+<div class="fire-scatter-chart-shell">
+    <ChartSurface Title="@Title"
+                  Description="@Description"
+                  Width="@Width"
+                  Height="@Height"
+                  Responsive="@Responsive"
+                  HostCssClass="fire-scatter-chart-host"
+                  SvgCssClass="fire-scatter-chart">
+        <ChildContent Context="surface">
+            @{
+                UpdateSurfaceSize(surface);
+            }
+
+            @if (SeriesStates.Count == 0 || SeriesStates.All(series => series.Points.Count == 0))
+            {
+                @if (EmptyStateTemplate is not null)
+                {
+                    @EmptyStateTemplate
+                }
+                else
+                {
+                    <SvgText X="@(surface.Width / 2)"
+                             Y="@(surface.Height / 2)"
+                             TextAnchor="middle"
+                             CssClass="empty-state"
+                             Content="No data" />
+                }
+            }
+            else
+            {
+                @if (ShowGridLines)
+                {
+                    <g class="grid-lines">
+                        @foreach (var tick in YTicks)
+                        {
+                            <line x1="@Fmt(ChartAreaLeft)"
+                                  y1="@Fmt(tick.Position)"
+                                  x2="@Fmt(ChartAreaRight)"
+                                  y2="@Fmt(tick.Position)"
+                                  class="grid-line" />
+                        }
+
+                        @foreach (var tick in XTicks)
+                        {
+                            <line x1="@Fmt(tick.Position)"
+                                  y1="@Fmt(ChartAreaTop)"
+                                  x2="@Fmt(tick.Position)"
+                                  y2="@Fmt(ChartAreaBottom)"
+                                  class="grid-line" />
+                        }
+                    </g>
+                }
+
+                <g class="axes">
+                    <line x1="@Fmt(ChartAreaLeft)" y1="@Fmt(ChartAreaTop)"
+                          x2="@Fmt(ChartAreaLeft)" y2="@Fmt(ChartAreaBottom)"
+                          class="axis-line" />
+                    <line x1="@Fmt(ChartAreaLeft)" y1="@Fmt(ChartAreaBottom)"
+                          x2="@Fmt(ChartAreaRight)" y2="@Fmt(ChartAreaBottom)"
+                          class="axis-line" />
+                </g>
+
+                @if (ShowAxisLabels)
+                {
+                    <g class="value-axis-labels">
+                        @foreach (var tick in YTicks)
+                        {
+                            <SvgText X="@(ChartAreaLeft - 10)"
+                                     Y="@tick.Position"
+                                     CssClass="axis-label"
+                                     TextAnchor="end"
+                                     DominantBaseline="middle"
+                                     Content="@tick.Label" />
+                        }
+                    </g>
+
+                    <g class="category-axis-labels">
+                        @foreach (var tick in XTicks)
+                        {
+                            <SvgText X="@tick.Position"
+                                     Y="@(ChartAreaBottom + 22)"
+                                     CssClass="axis-label"
+                                     TextAnchor="middle"
+                                     Content="@tick.Label" />
+                        }
+                    </g>
+                }
+
+                <g class="scatter-series" role="list" aria-label="@Title">
+                    @foreach (var series in SeriesStates)
+                    {
+                        <g @key="series.Key" class="@GetSeriesClasses(series)" role="listitem" aria-label="@series.Name">
+                            @foreach (var point in series.Points)
+                            {
+                                <g @key="point.Key"
+                                   class="@GetPointClasses(point)"
+                                   tabindex="0"
+                                   role="button"
+                                   aria-label="@point.AccessibleLabel"
+                                   aria-selected="@point.IsSelected"
+                                   @onmouseover="() => HandleHoverAsync(point)"
+                                   @onmouseout="() => HandleHoverLeaveAsync(point)"
+                                   @onfocus="() => HandleFocusAsync(point)"
+                                   @onblur="() => HandleBlurAsync(point)"
+                                   @onclick="() => HandleSelectAsync(point)"
+                                   @onkeydown="(args) => HandleKeyDownAsync(args, point)">
+                                    <circle class="scatter-point"
+                                            cx="@Fmt(point.Coordinates.X)"
+                                            cy="@Fmt(point.Coordinates.Y)"
+                                            r="@Fmt(GetPointRadius(point))"
+                                            fill="@point.Fill"
+                                            style="@GetPointStyle(point)">
+                                        <title>@point.AccessibleLabel</title>
+                                    </circle>
+                                </g>
+                            }
+                        </g>
+                    }
+                </g>
+            }
+        </ChildContent>
+        <OverlayContent>
+            @if (ShowTooltip && HoveredPoint is not null)
+            {
+                <div class="chart-tooltip"
+                     style="@GetTooltipStyle(HoveredPoint)">
+                    @if (TooltipTemplate is not null)
+                    {
+                        @TooltipTemplate(HoveredPoint)
+                    }
+                    else
+                    {
+                        <div class="tooltip-series">@HoveredPoint.SeriesName</div>
+                        <div class="tooltip-label">@HoveredPoint.Label</div>
+                        <div class="tooltip-value">@HoveredPoint.Y.ToString(ValueFormat, CultureInfo.InvariantCulture)</div>
+                    }
+                </div>
+            }
+        </OverlayContent>
+    </ChartSurface>
+
+    @if (ShowLegend && HasSeriesDefinitions && SeriesStates.Count > 1)
+    {
+        <div class="scatter-legend" role="list" aria-label="@($"{Title} legend")">
+            @foreach (var series in SeriesStates)
+            {
+                <button type="button"
+                        class="@GetLegendItemClasses(series)"
+                        role="listitem"
+                        @onmouseover="() => HandleLegendEnter(series.Index)"
+                        @onmouseout="HandleLegendLeave"
+                        @onfocus="() => HandleLegendEnter(series.Index)"
+                        @onblur="HandleLegendLeave">
+                    <span class="scatter-legend__swatch" style="@($"--legend-color: {series.Fill}")" aria-hidden="true"></span>
+                    <span class="scatter-legend__label">@series.Name</span>
+                    <span class="scatter-legend__count">@series.Points.Count pts</span>
+                </button>
+            }
+        </div>
+    }
+</div>

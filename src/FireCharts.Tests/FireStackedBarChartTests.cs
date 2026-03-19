@@ -95,6 +95,25 @@ public sealed class FireStackedBarChartTests : TestContext
         Assert.True(wideWidth > narrowWidth);
     }
 
+    [Fact]
+    public void CornerRadiusChangesRenderedSegmentRounding()
+    {
+        var cut = RenderComponent<FireStackedBarChart<StackedDatum, SegmentDatum>>(parameters => parameters
+            .Add(component => component.Items, SampleData)
+            .Add(component => component.SegmentsSelector, item => item.Segments)
+            .Add(component => component.LabelSelector, item => item.Label)
+            .Add(component => component.SegmentValueSelector, segment => segment.Value)
+            .Add(component => component.SegmentLabelSelector, segment => segment.Label)
+            .Add(component => component.CornerRadius, 2));
+
+        Assert.Equal("2.0", cut.Find("rect.stacked-segment-rect").GetAttribute("rx"));
+
+        cut.SetParametersAndRender(parameters => parameters.Add(component => component.CornerRadius, 9));
+
+        Assert.Equal("9.0", cut.Find("rect.stacked-segment-rect").GetAttribute("rx"));
+        Assert.Equal("9.0", cut.Find("rect.stacked-segment-rect").GetAttribute("ry"));
+    }
+
     [Theory]
     [InlineData(ChartLegendPlacement.Top, "legend-top")]
     [InlineData(ChartLegendPlacement.Bottom, "legend-bottom")]
