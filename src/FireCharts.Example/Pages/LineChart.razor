@@ -157,7 +157,7 @@
                                        Width="680"
                                        Height="400"
                                        Responsive="true"
-                                       Series="@ComparisonSeries"
+                                       Series="@PlaygroundSeries"
                                        XValueSelector="point => LineChartXValue.FromDateTime(point.Date)"
                                        YValueSelector="point => point.Value"
                                        LabelSelector="GetTrendLabel"
@@ -228,6 +228,26 @@
                                 <option value="@LinePointDisplayMode.None">None</option>
                             </select>
                         </label>
+
+                        <div class="control-field">
+                            <span>Series count</span>
+                            <div class="control-actions">
+                                <button type="button"
+                                        class="button-link playground-reset"
+                                        @onclick="RemovePlaygroundSeries"
+                                        disabled="@(!CanRemovePlaygroundSeries)">
+                                    Remove line
+                                </button>
+                                <button type="button"
+                                        class="button-link playground-reset"
+                                        @onclick="AddPlaygroundSeries"
+                                        disabled="@(!CanAddPlaygroundSeries)">
+                                    Add line
+                                </button>
+                            </div>
+                            <strong>@PlaygroundSeriesCount of @MaxPlaygroundSeries visible</strong>
+                            <span class="control-hint">Some sample lines intentionally converge so users can see how overlapping trends read in the same chart.</span>
+                        </div>
 
                         <label class="control-field">
                             <span>Curve tension</span>
@@ -335,6 +355,105 @@
         new("Inspections", InspectionComparisonTrend, "#198f8c", FillColor: "#198f8c")
     ];
 
+    private IReadOnlyList<TrendPoint> ServiceRequestsTrend { get; } =
+    [
+        new(new DateTime(2025, 1, 6), 76),
+        new(new DateTime(2025, 1, 13), 81),
+        new(new DateTime(2025, 1, 20), 88),
+        new(new DateTime(2025, 1, 27), 92),
+        new(new DateTime(2025, 2, 3), 97),
+        new(new DateTime(2025, 2, 10), 104, "Escalation week", true),
+        new(new DateTime(2025, 2, 17), 101),
+        new(new DateTime(2025, 2, 24), 109)
+    ];
+
+    private IReadOnlyList<TrendPoint> PortalAdoptionTrend { get; } =
+    [
+        new(new DateTime(2025, 1, 6), 52),
+        new(new DateTime(2025, 1, 13), 58),
+        new(new DateTime(2025, 1, 20), 61),
+        new(new DateTime(2025, 1, 27), 67),
+        new(new DateTime(2025, 2, 3), 75),
+        new(new DateTime(2025, 2, 10), 84, "Awareness push", true),
+        new(new DateTime(2025, 2, 17), 90),
+        new(new DateTime(2025, 2, 24), 96)
+    ];
+
+    private IReadOnlyList<TrendPoint> PlanReviewsTrend { get; } =
+    [
+        new(new DateTime(2025, 1, 6), 108),
+        new(new DateTime(2025, 1, 13), 114),
+        new(new DateTime(2025, 1, 20), 123, "Overlaps permits", true),
+        new(new DateTime(2025, 1, 27), 126),
+        new(new DateTime(2025, 2, 3), 134),
+        new(new DateTime(2025, 2, 10), 142, "Shared peak", true),
+        new(new DateTime(2025, 2, 17), 140),
+        new(new DateTime(2025, 2, 24), 147)
+    ];
+
+    private IReadOnlyList<TrendPoint> FieldCallsTrend { get; } =
+    [
+        new(new DateTime(2025, 1, 6), 132),
+        new(new DateTime(2025, 1, 13), 128),
+        new(new DateTime(2025, 1, 20), 123, "Overlaps permits", true),
+        new(new DateTime(2025, 1, 27), 118),
+        new(new DateTime(2025, 2, 3), 118, "Matches inspections", true),
+        new(new DateTime(2025, 2, 10), 113),
+        new(new DateTime(2025, 2, 17), 106),
+        new(new DateTime(2025, 2, 24), 99)
+    ];
+
+    private IReadOnlyList<TrendPoint> ComplianceTrend { get; } =
+    [
+        new(new DateTime(2025, 1, 6), 76),
+        new(new DateTime(2025, 1, 13), 81),
+        new(new DateTime(2025, 1, 20), 88),
+        new(new DateTime(2025, 1, 27), 92),
+        new(new DateTime(2025, 2, 3), 97),
+        new(new DateTime(2025, 2, 10), 101),
+        new(new DateTime(2025, 2, 17), 101, "Overlaps requests", true),
+        new(new DateTime(2025, 2, 24), 109)
+    ];
+
+    private IReadOnlyList<TrendPoint> StaffingTrend { get; } =
+    [
+        new(new DateTime(2025, 1, 6), 98),
+        new(new DateTime(2025, 1, 13), 91),
+        new(new DateTime(2025, 1, 20), 84),
+        new(new DateTime(2025, 1, 27), 76),
+        new(new DateTime(2025, 2, 3), 75, "Crosses adoption", true),
+        new(new DateTime(2025, 2, 10), 68),
+        new(new DateTime(2025, 2, 17), 61),
+        new(new DateTime(2025, 2, 24), 55)
+    ];
+
+    private IReadOnlyList<TrendPoint> RenewalsTrend { get; } =
+    [
+        new(new DateTime(2025, 1, 6), 118),
+        new(new DateTime(2025, 1, 13), 120),
+        new(new DateTime(2025, 1, 20), 123, "Three-line overlap", true),
+        new(new DateTime(2025, 1, 27), 121),
+        new(new DateTime(2025, 2, 3), 129),
+        new(new DateTime(2025, 2, 10), 136),
+        new(new DateTime(2025, 2, 17), 138),
+        new(new DateTime(2025, 2, 24), 147, "Shared finish", true)
+    ];
+
+    private IReadOnlyList<TrendPoint> ResubmittalsTrend { get; } =
+    [
+        new(new DateTime(2025, 1, 6), 88),
+        new(new DateTime(2025, 1, 13), 93),
+        new(new DateTime(2025, 1, 20), 98),
+        new(new DateTime(2025, 1, 27), 104),
+        new(new DateTime(2025, 2, 3), 118, "Matches inspections", true),
+        new(new DateTime(2025, 2, 10), 124),
+        new(new DateTime(2025, 2, 17), 126),
+        new(new DateTime(2025, 2, 24), 129, "Shared close", true)
+    ];
+
+    private const int MaxPlaygroundSeries = 10;
+    private int PlaygroundSeriesCount { get; set; } = 2;
+
     private LineChartVariant PlaygroundVariant { get; set; } = LineChartVariant.Line;
     private LineInterpolationMode PlaygroundInterpolation { get; set; } = LineInterpolationMode.Smooth;
     private LinePointDisplayMode PlaygroundPointDisplayMode { get; set; } = LinePointDisplayMode.HighlightedOnly;
@@ -347,8 +466,29 @@
     private int PlaygroundXAxisTickCount { get; set; } = 5;
     private int PlaygroundYAxisTickCount { get; set; } = 5;
 
+    private IReadOnlyList<LineChartSeries<TrendPoint>> PlaygroundSeries =>
+        AllPlaygroundSeries.Take(PlaygroundSeriesCount).ToList();
+
+    private IReadOnlyList<LineChartSeries<TrendPoint>> AllPlaygroundSeries =>
+    [
+        new("Permits", PermitComparisonTrend, "#d94f3d", FillColor: "#d94f3b"),
+        new("Inspections", InspectionComparisonTrend, "#198f8c", FillColor: "#198f8c"),
+        new("Service requests", ServiceRequestsTrend, "#8a7cf6", FillColor: "#8a7cf6"),
+        new("Portal adoption", PortalAdoptionTrend, "#e79b21", FillColor: "#e79b21"),
+        new("Plan reviews", PlanReviewsTrend, "#4d89ff", FillColor: "#4d89ff"),
+        new("Field calls", FieldCallsTrend, "#d86ca6", FillColor: "#d86ca6"),
+        new("Compliance", ComplianceTrend, "#3f7d44", FillColor: "#3f7d44"),
+        new("Staffing", StaffingTrend, "#7d5a50", FillColor: "#7d5a50"),
+        new("Renewals", RenewalsTrend, "#5c6bc0", FillColor: "#5c6bc0"),
+        new("Resubmittals", ResubmittalsTrend, "#c97a1f", FillColor: "#c97a1f")
+    ];
+
+    private bool CanAddPlaygroundSeries => PlaygroundSeriesCount < MaxPlaygroundSeries;
+    private bool CanRemovePlaygroundSeries => PlaygroundSeriesCount > 1;
+
     private void ResetLinePlayground()
     {
+        PlaygroundSeriesCount = 2;
         PlaygroundVariant = LineChartVariant.Line;
         PlaygroundInterpolation = LineInterpolationMode.Smooth;
         PlaygroundPointDisplayMode = LinePointDisplayMode.HighlightedOnly;
@@ -360,6 +500,26 @@
         PlaygroundAreaOpacity = 0.18;
         PlaygroundXAxisTickCount = 5;
         PlaygroundYAxisTickCount = 5;
+    }
+
+    private void AddPlaygroundSeries()
+    {
+        if (!CanAddPlaygroundSeries)
+        {
+            return;
+        }
+
+        PlaygroundSeriesCount++;
+    }
+
+    private void RemovePlaygroundSeries()
+    {
+        if (!CanRemovePlaygroundSeries)
+        {
+            return;
+        }
+
+        PlaygroundSeriesCount--;
     }
 
     private static string GetTrendLabel(TrendPoint point) =>

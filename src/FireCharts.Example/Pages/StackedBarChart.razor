@@ -1,0 +1,252 @@
+@page "/stackedbarchart"
+
+@using System.Globalization
+@using FireCharts.Models
+
+<PageTitle>Stacked Bar Chart</PageTitle>
+
+<PageIntro Kicker="Stacked comparisons"
+           Title="Stacked bar charts show totals and composition at the same time."
+           Description="This stacked SVG chart keeps the existing FireCharts interaction model while adding segment legends, bar-width tuning, and custom in-chart SVG annotations.">
+    <div class="stat-strip" aria-label="Stacked chart strengths">
+        <div class="stat-pill"><strong>Composition</strong><span>See how each category is built from repeated segment types.</span></div>
+        <div class="stat-pill"><strong>Flexible legends</strong><span>Place the legend above, below, or beside the chart surface.</span></div>
+        <div class="stat-pill"><strong>SVG overlays</strong><span>Add goal lines and other aligned annotations without leaving the component.</span></div>
+    </div>
+</PageIntro>
+
+<section class="chart-grid">
+    <ChartDemoCard Kicker="Vertical stack"
+                   Title="Incident outcomes by station"
+                   Description="The legend below groups repeated segment labels while the custom SVG layer draws a target line across the plot area.">
+        <ChildContent>
+            <FireStackedBarChart TItem="StationStack"
+                                 TSegment="StationSegment"
+                                 Title="Incident outcomes by station"
+                                 Description="Open, closed, and deferred incidents by station"
+                                 Width="680"
+                                 Height="420"
+                                 Responsive="true"
+                                 Items="@Stations"
+                                 SegmentsSelector="item => item.Segments"
+                                 LabelSelector="item => item.Label"
+                                 SegmentValueSelector="segment => segment.Value"
+                                 SegmentLabelSelector="segment => segment.Label"
+                                 SegmentColorSelector="segment => segment.Color"
+                                 SegmentHoverColorSelector="segment => segment.HoverColor"
+                                 SelectedItem="@SelectedStation"
+                                 SelectedItemChanged="OnSelectedStationChanged"
+                                 BarWidthRatio="0.68"
+                                 LegendPlacement="ChartLegendPlacement.Bottom">
+                <ChartContentTemplate Context="context">
+                    @{
+                        var goalY = context.ChartAreaBottom - (GoalTotal / context.MaxValue) * context.ChartAreaHeight;
+                    }
+                    <line x1="@context.ChartAreaLeft"
+                          y1="@goalY"
+                          x2="@context.ChartAreaRight"
+                          y2="@goalY"
+                          stroke="#7a4f3d"
+                          stroke-width="2"
+                          stroke-dasharray="6 6" />
+                    <SvgText X="@(context.ChartAreaRight - 4)"
+                             Y="@(goalY - 6)"
+                             TextAnchor="end"
+                             CssClass="stacked-demo-goal"
+                             Content="@($"Goal {GoalTotal.ToString("F0", CultureInfo.InvariantCulture)}")" />
+                </ChartContentTemplate>
+            </FireStackedBarChart>
+        </ChildContent>
+        <FooterContent>
+            <p class="selection-note" role="status" aria-live="polite">
+                @if (SelectedStation is not null)
+                {
+                    <span><strong>Selected:</strong> @SelectedStation.Label</span>
+                }
+                else
+                {
+                    <span>Select a segment to keep one station emphasized.</span>
+                }
+            </p>
+        </FooterContent>
+    </ChartDemoCard>
+
+    <ChartDemoCard Kicker="Interactive controls"
+                   Title="Tune the stacked chart"
+                   Description="Switch orientation, move the legend, and adjust the bar ratio without changing the data model."
+                   WrapInScroll="false">
+        <ChildContent>
+            <div class="playground-layout">
+                <div class="playground-canvas">
+                    <div class="chart-scroll">
+                        <FireStackedBarChart TItem="StationStack"
+                                             TSegment="StationSegment"
+                                             Title="Stacked station metrics"
+                                             Description="Interactive stacked bar chart demo"
+                                             Width="680"
+                                             Height="420"
+                                             Responsive="true"
+                                             Items="@Stations"
+                                             SegmentsSelector="item => item.Segments"
+                                             LabelSelector="item => item.Label"
+                                             SegmentValueSelector="segment => segment.Value"
+                                             SegmentLabelSelector="segment => segment.Label"
+                                             SegmentColorSelector="segment => segment.Color"
+                                             SegmentHoverColorSelector="segment => segment.HoverColor"
+                                             Horizontal="@PlaygroundHorizontal"
+                                             LegendPlacement="@PlaygroundLegendPlacement"
+                                             BarWidthRatio="@PlaygroundBarWidthRatio"
+                                             ShowLegend="@PlaygroundShowLegend"
+                                             ShowTooltip="@PlaygroundShowTooltip" />
+                    </div>
+                </div>
+
+                <div class="playground-panel">
+                    <div class="playground-panel__header">
+                        <div>
+                            <p class="section-kicker">Controls</p>
+                            <h3>Stacked options</h3>
+                        </div>
+                        <button type="button" class="button-link playground-reset" @onclick="ResetPlayground">Reset</button>
+                    </div>
+
+                    <div class="control-grid">
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundHorizontal" />
+                            <span>Horizontal layout</span>
+                        </label>
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundShowLegend" />
+                            <span>Show legend</span>
+                        </label>
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundShowTooltip" />
+                            <span>Show tooltip</span>
+                        </label>
+
+                        <label class="control-field">
+                            <span>Bar width ratio</span>
+                            <input type="range" min="0.1" max="1" step="0.05" @bind="PlaygroundBarWidthRatio" @bind:event="oninput" />
+                            <strong>@PlaygroundBarWidthRatio.ToString("0.00")</strong>
+                        </label>
+
+                        <label class="control-select">
+                            <span>Legend placement</span>
+                            <select @bind="PlaygroundLegendPlacement">
+                                <option value="@ChartLegendPlacement.Top">Top</option>
+                                <option value="@ChartLegendPlacement.Bottom">Bottom</option>
+                                <option value="@ChartLegendPlacement.Left">Left</option>
+                                <option value="@ChartLegendPlacement.Right">Right</option>
+                                <option value="@ChartLegendPlacement.Start">Start</option>
+                                <option value="@ChartLegendPlacement.End">End</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </ChildContent>
+    </ChartDemoCard>
+</section>
+
+<ExampleDocsSection Title="Stacked bar chart code example"
+                    Description="Callers keep their own item model and simply point the chart at a segment collection plus the selectors for value, label, and color."
+                    CodeTitle="Render a stacked bar chart"
+                    CodeDescription="This example shows the typed item-first API with a custom SVG target line."
+                    CodeExample="@UsageExample"
+                    ApiTitle="Most useful parameters"
+                    ApiDescription="Use these first when you want stacked totals, segment legends, and responsive SVG sizing."
+                    ApiItems="@ApiItems" />
+
+@code {
+    private const double GoalTotal = 48;
+
+    private StationStack? SelectedStation { get; set; }
+
+    private IReadOnlyList<StationStack> Stations { get; } =
+    [
+        new("Station 1",
+        [
+            new StationSegment("Open", 24, "#d94f3d", "#a73728"),
+            new StationSegment("Closed", 13, "#198f8c", "#11696c"),
+            new StationSegment("Deferred", 7, "#8a7cf6", "#6257c4")
+        ]),
+        new("Station 3",
+        [
+            new StationSegment("Open", 18, "#d94f3d", "#a73728"),
+            new StationSegment("Closed", 21, "#198f8c", "#11696c"),
+            new StationSegment("Deferred", 5, "#8a7cf6", "#6257c4")
+        ]),
+        new("Station 8",
+        [
+            new StationSegment("Open", 27, "#d94f3d", "#a73728"),
+            new StationSegment("Closed", 11, "#198f8c", "#11696c"),
+            new StationSegment("Deferred", 9, "#8a7cf6", "#6257c4")
+        ])
+    ];
+
+    private bool PlaygroundHorizontal { get; set; }
+    private bool PlaygroundShowLegend { get; set; } = true;
+    private bool PlaygroundShowTooltip { get; set; } = true;
+    private double PlaygroundBarWidthRatio { get; set; } = 0.72;
+    private ChartLegendPlacement PlaygroundLegendPlacement { get; set; } = ChartLegendPlacement.End;
+
+    private Task OnSelectedStationChanged(StationStack? item)
+    {
+        SelectedStation = item;
+        return Task.CompletedTask;
+    }
+
+    private void ResetPlayground()
+    {
+        PlaygroundHorizontal = false;
+        PlaygroundShowLegend = true;
+        PlaygroundShowTooltip = true;
+        PlaygroundBarWidthRatio = 0.72;
+        PlaygroundLegendPlacement = ChartLegendPlacement.End;
+    }
+
+    private string UsageExample => """
+@using FireCharts.Components
+@using FireCharts.Models
+
+<FireStackedBarChart TItem="StationStack"
+                     TSegment="StationSegment"
+                     Title="Incident outcomes by station"
+                     Description="Open, closed, and deferred incidents by station"
+                     Width="680"
+                     Height="420"
+                     Responsive="true"
+                     Items="@Stations"
+                     SegmentsSelector="item => item.Segments"
+                     LabelSelector="item => item.Label"
+                     SegmentValueSelector="segment => segment.Value"
+                     SegmentLabelSelector="segment => segment.Label"
+                     SegmentColorSelector="segment => segment.Color"
+                     SegmentHoverColorSelector="segment => segment.HoverColor"
+                     BarWidthRatio="0.68"
+                     LegendPlacement="ChartLegendPlacement.Bottom">
+    <ChartContentTemplate Context="context">
+        <line x1="@context.ChartAreaLeft"
+              y1="@context.ChartAreaTop"
+              x2="@context.ChartAreaRight"
+              y2="@context.ChartAreaTop"
+              stroke="#7a4f3d"
+              stroke-width="2"
+              stroke-dasharray="6 6" />
+    </ChartContentTemplate>
+</FireStackedBarChart>
+""";
+
+    private IReadOnlyList<ExampleApiItem> ApiItems { get; } =
+    [
+        new("SegmentsSelector", "Maps each bar item to the collection of stacked segments it should render."),
+        new("SegmentValueSelector", "Provides the numeric segment contribution used in stack totals and geometry."),
+        new("LegendPlacement", "Moves the segment legend to the top, bottom, left, right, start, or end of the chart shell."),
+        new("BarWidthRatio", "Controls how much of each category slot is occupied by the rendered bar."),
+        new("ChartContentTemplate", "Lets you inject aligned SVG lines, markers, or labels inside the chart area.")
+    ];
+
+    private sealed record StationStack(string Label, IReadOnlyList<StationSegment> Segments);
+
+    private sealed record StationSegment(string Label, double Value, string Color, string HoverColor);
+}

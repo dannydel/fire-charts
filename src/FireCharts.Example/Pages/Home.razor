@@ -1,50 +1,308 @@
-﻿@page "/"
+@page "/"
+
+@using System.Globalization
+@using FireCharts.Models
 
 <PageTitle>Home</PageTitle>
 
-<section class="hero-panel">
-    <div class="hero-copy">
-        <p class="section-kicker">Accessible visual system</p>
-        <h1>Bold color can still feel clean, focused, and easy to read.</h1>
+<section class="home-hero">
+    <div class="home-hero__copy">
+        <p class="section-kicker">FireCharts component gallery</p>
+        <div class="home-brand-lockup" aria-label="FireCharts brand">
+            <img class="home-brand-lockup__mark" src="brand/concepts/firecharts-concept-2b.svg" alt="" />
+            <div class="home-brand-lockup__copy">
+                <p class="home-brand-lockup__title">FireCharts</p>
+                <p class="home-brand-lockup__tagline">A Blazor forward chart library.</p>
+            </div>
+        </div>
+        <h1>Show the library like a product, not just a demo list.</h1>
         <p class="hero-lede">
-            FireCharts now demonstrates an editorial-bright direction: warm neutrals, assertive accents,
-            disciplined spacing, and interaction states that stay legible for keyboard and screen-reader users.
+            The homepage now leads with the actual components: expressive charts, typed APIs, and interaction
+            patterns that feel ready for dashboards, portals, and reporting surfaces.
         </p>
 
-        <div class="hero-actions">
-            <a class="button-link button-link--primary" href="linechart">Explore line charts</a>
-            <a class="button-link" href="barchart">View bar charts</a>
-            <a class="button-link" href="piechart">View pie charts</a>
-            <a class="button-link" href="weather">View data table</a>
+        <div class="home-hero__actions">
+            <a class="button-link button-link--primary" href="linechart">See line chart demos</a>
+            <a class="button-link" href="barchart">See bar chart demos</a>
+            <a class="button-link" href="piechart">See pie chart demos</a>
+        </div>
+
+        <div class="home-hero__stats" aria-label="Library highlights">
+            <div class="stat-pill">
+                <strong>Typed components</strong>
+                <span>Selector-based APIs keep data mapping explicit and easy to scan.</span>
+            </div>
+            <div class="stat-pill">
+                <strong>Responsive by default</strong>
+                <span>Examples flex from compact cards to wider dashboard canvases.</span>
+            </div>
+            <div class="stat-pill">
+                <strong>Accessible interaction</strong>
+                <span>Hover, focus, selection, and labels work together instead of competing.</span>
+            </div>
         </div>
     </div>
 
-    <div class="hero-card" aria-label="Design pillars">
-        <p class="hero-card__label">Three anchors</p>
-        <ul class="check-list">
-            <li>Readable contrast and visible focus styles</li>
-            <li>Colorful surfaces without noisy backgrounds</li>
-            <li>Charts that communicate through labels and states, not color alone</li>
-        </ul>
+    <aside class="home-hero__spotlight" aria-labelledby="home-spotlight-title">
+        <div class="home-hero__spotlight-header">
+            <div>
+                <p class="section-kicker">Hero example</p>
+                <h2 id="home-spotlight-title">Operational trend preview</h2>
+            </div>
+            <p class="home-hero__spotlight-copy">
+                A live line chart in the hero makes the library feel tangible immediately.
+            </p>
+        </div>
+
+        <div class="chart-scroll">
+            <FireLineChart TItem="HeroTrendPoint"
+                           Title="Inspections completed"
+                           Description="Weekly inspections completed across four service areas"
+                           Width="640"
+                           Height="360"
+                           Responsive="true"
+                           Series="@HeroTrendSeries"
+                           XValueSelector="point => LineChartXValue.FromDateTime(point.Date)"
+                           YValueSelector="point => point.Value"
+                           LabelSelector="point => point.Label"
+                           HighlightSelector="point => point.Highlight"
+                           ShowLegend="true"
+                           PointDisplayMode="@LinePointDisplayMode.HighlightedOnly">
+                <TooltipTemplate Context="point">
+                    <div class="demo-tooltip-title">@point.SeriesName</div>
+                    <div>@point.X.ToDateTime().ToString("MMM d", CultureInfo.InvariantCulture)</div>
+                    <div>@point.Y.ToString("F0", CultureInfo.InvariantCulture) completed</div>
+                </TooltipTemplate>
+            </FireLineChart>
+        </div>
+    </aside>
+</section>
+
+<section class="home-value" aria-label="Why this library feels product ready">
+    <article class="feature-card">
+        <p class="feature-card__eyebrow">Real components</p>
+        <h2>Examples sell the API</h2>
+        <p>Each preview is a real component instance, so the homepage feels like a showroom instead of static marketing copy.</p>
+    </article>
+
+    <article class="feature-card">
+        <p class="feature-card__eyebrow">Consistent patterns</p>
+        <h2>One mental model across charts</h2>
+        <p>Selectors, titles, descriptions, and responsive behavior stay familiar whether you render bars, lines, or pies.</p>
+    </article>
+
+    <article class="feature-card">
+        <p class="feature-card__eyebrow">Dashboard friendly</p>
+        <h2>Strong in cards and full pages</h2>
+        <p>The same components can anchor a landing page, sit in a dense admin grid, or expand into dedicated demo pages.</p>
+    </article>
+</section>
+
+<section class="home-showcase">
+    <div class="section-heading">
+        <p class="section-kicker">Component showcase</p>
+        <h2>Three chart types, each presented like a polished product feature.</h2>
+        <p class="section-lede">
+            The homepage now introduces the library through compact, high-signal examples and a short explanation of
+            where each component shines.
+        </p>
+    </div>
+
+    <div class="home-showcase__grid">
+        <ChartDemoCard Kicker="Line chart"
+                       Title="Trend stories with highlighted moments"
+                       Description="Use smooth, precise trend lines for operational volume, throughput, adoption, or any time-based signal."
+                       Compact="true">
+            <ChildContent>
+                <FireLineChart TItem="MiniTrendPoint"
+                               Title="Permit intake"
+                               Description="Weekly permit intake"
+                               Width="420"
+                               Height="300"
+                               Responsive="true"
+                               Items="@MiniTrend"
+                               XValueSelector="point => LineChartXValue.FromDateTime(point.Date)"
+                               YValueSelector="point => point.Value"
+                               LabelSelector="point => point.Label"
+                               HighlightSelector="point => point.Highlight"
+                               ShowLegend="false"
+                               PointDisplayMode="@LinePointDisplayMode.HighlightedOnly" />
+            </ChildContent>
+            <FooterContent>
+                <div class="home-card-footer">
+                    <span class="home-chip">Smooth or step interpolation</span>
+                    <span class="home-chip">Optional selection state</span>
+                </div>
+            </FooterContent>
+        </ChartDemoCard>
+
+        <ChartDemoCard Kicker="Bar chart"
+                       Title="Category comparisons with confident labels"
+                       Description="Bar charts work well for ranking, inventory, throughput, and side-by-side comparisons that need quick scanning."
+                       Compact="true">
+            <ChildContent>
+                <FireBarChart TItem="MiniBarPoint"
+                              Title="Service requests"
+                              Description="Requests by category"
+                              Width="420"
+                              Height="300"
+                              Responsive="true"
+                              Items="@MiniBars"
+                              ValueSelector="point => point.Value"
+                              LabelSelector="point => point.Label"
+                              ColorSelector="point => point.Color"
+                              HoverColorSelector="point => point.HoverColor"
+                              GridLineCount="4"
+                              BarSpacing="0.18" />
+            </ChildContent>
+            <FooterContent>
+                <div class="home-card-footer">
+                    <span class="home-chip">Vertical or horizontal layout</span>
+                    <span class="home-chip">Value labels and tooltips</span>
+                </div>
+            </FooterContent>
+        </ChartDemoCard>
+
+        <ChartDemoCard Kicker="Pie chart"
+                       Title="Composition views with calm radial labeling"
+                       Description="Show allocation, share, or channel mix using overlay labels or a cleaner legend-first treatment."
+                       Compact="true"
+                       WrapInScroll="false">
+            <ChildContent>
+                <FirePieChart TItem="MiniSlice"
+                              Title="Request channels"
+                              Description="Volume by intake channel"
+                              Width="420"
+                              Height="320"
+                              Responsive="true"
+                              Items="@MiniSlices"
+                              ValueSelector="point => point.Value"
+                              LabelSelector="point => point.Label"
+                              ColorSelector="point => point.Color"
+                              InnerRadiusRatio="0.34"
+                              LabelMode="PieChartLabelMode.Legend"
+                              ShowCenterLabel="true"
+                              CenterLabelTitle="Channels" />
+            </ChildContent>
+            <FooterContent>
+                <div class="home-card-footer">
+                    <span class="home-chip">Pie or donut styling</span>
+                    <span class="home-chip">Overlay or legend labels</span>
+                </div>
+            </FooterContent>
+        </ChartDemoCard>
     </div>
 </section>
 
-<section class="feature-grid" aria-label="System highlights">
-    <article class="feature-card">
-        <p class="feature-card__eyebrow">Typography</p>
-        <h2>Crisp hierarchy</h2>
-        <p>Headings do the expressive work while body copy stays calm and highly legible on soft surfaces.</p>
-    </article>
+<section class="home-api">
+    <div class="home-api__content">
+        <p class="section-kicker">Developer experience</p>
+        <h2>The API surface stays approachable even when the visuals feel premium.</h2>
+        <p class="section-lede">
+            The examples below market the library to both audiences at once: designers see polished output, and
+            developers can tell the components are straightforward to wire up.
+        </p>
 
-    <article class="feature-card">
-        <p class="feature-card__eyebrow">Color</p>
-        <h2>Warm neutrals, bright accents</h2>
-        <p>A restrained canvas lets orange, coral, and amber accents feel premium instead of overwhelming.</p>
-    </article>
+        <div class="home-api__list" aria-label="API qualities">
+            <div class="home-api__item">
+                <strong>Typed data in</strong>
+                <span>Keep your own models and map them with selectors instead of reshaping everything into a chart DTO.</span>
+            </div>
+            <div class="home-api__item">
+                <strong>Behavior toggles</strong>
+                <span>Turn on legends, labels, grid lines, interpolation modes, and selection without custom renderers.</span>
+            </div>
+            <div class="home-api__item">
+                <strong>Composable templates</strong>
+                <span>Drop in tooltip content where richer storytelling or dashboard context is useful.</span>
+            </div>
+        </div>
+    </div>
 
-    <article class="feature-card">
-        <p class="feature-card__eyebrow">Accessibility</p>
-        <h2>Designed for clarity</h2>
-        <p>Focus visibility, semantic structure, motion controls, and contrast all ship as part of the visual style.</p>
+    <article class="docs-card docs-card--code home-code-card">
+        <div class="chart-card__header">
+            <div>
+                <p class="section-kicker">Starter snippet</p>
+                <h3>Render a showcase-ready chart</h3>
+            </div>
+            <p class="chart-card__copy">The same patterns from the demo pages work cleanly in product code.</p>
+        </div>
+
+        <pre class="code-example"><code>@HomeUsageExample</code></pre>
     </article>
 </section>
+
+@code {
+    private IReadOnlyList<LineChartSeries<HeroTrendPoint>> HeroTrendSeries { get; } =
+    [
+        new(
+            "North",
+            [
+                new(new DateTime(2026, 1, 5), 126, "Jan 5", false),
+                new(new DateTime(2026, 1, 12), 138, "Jan 12", false),
+                new(new DateTime(2026, 1, 19), 151, "Jan 19", true),
+                new(new DateTime(2026, 1, 26), 147, "Jan 26", false),
+                new(new DateTime(2026, 2, 2), 164, "Feb 2", true)
+            ],
+            "#f05f3b",
+            HoverColor: "#bc3b20",
+            FillColor: "#f05f3b"),
+        new(
+            "South",
+            [
+                new(new DateTime(2026, 1, 5), 118, "Jan 5", false),
+                new(new DateTime(2026, 1, 12), 129, "Jan 12", false),
+                new(new DateTime(2026, 1, 19), 132, "Jan 19", false),
+                new(new DateTime(2026, 1, 26), 144, "Jan 26", true),
+                new(new DateTime(2026, 2, 2), 149, "Feb 2", false)
+            ],
+            "#198f8c",
+            HoverColor: "#11696c",
+            FillColor: "#198f8c")
+    ];
+
+    private IReadOnlyList<MiniTrendPoint> MiniTrend { get; } =
+    [
+        new(new DateTime(2026, 1, 6), 42, "Jan 6", false),
+        new(new DateTime(2026, 1, 13), 48, "Jan 13", false),
+        new(new DateTime(2026, 1, 20), 63, "Jan 20", true),
+        new(new DateTime(2026, 1, 27), 59, "Jan 27", false),
+        new(new DateTime(2026, 2, 3), 68, "Feb 3", true)
+    ];
+
+    private IReadOnlyList<MiniBarPoint> MiniBars { get; } =
+    [
+        new("Inspections", 84, "#d94f3d", "#a73728"),
+        new("Permits", 61, "#198f8c", "#11696c"),
+        new("Billing", 47, "#e79b21", "#b87414"),
+        new("Planning", 39, "#8a7cf6", "#6257c4")
+    ];
+
+    private IReadOnlyList<MiniSlice> MiniSlices { get; } =
+    [
+        new("Phone", 34, "#d94f3d"),
+        new("Portal", 29, "#198f8c"),
+        new("Email", 21, "#e79b21"),
+        new("Walk-in", 16, "#8a7cf6")
+    ];
+
+    private string HomeUsageExample => """
+@using FireCharts.Components
+@using FireCharts.Models
+
+<FireLineChart TItem="WeeklyPoint"
+               Title="Inspections completed"
+               Description="Weekly completions across districts"
+               Responsive="true"
+               Items="@Points"
+               XValueSelector="point => LineChartXValue.FromDateTime(point.Date)"
+               YValueSelector="point => point.Completed"
+               LabelSelector="point => point.Label"
+               HighlightSelector="point => point.IsMilestone" />
+""";
+
+    private sealed record HeroTrendPoint(DateTime Date, double Value, string Label, bool Highlight);
+    private sealed record MiniTrendPoint(DateTime Date, double Value, string Label, bool Highlight);
+    private sealed record MiniBarPoint(string Label, double Value, string Color, string HoverColor);
+    private sealed record MiniSlice(string Label, double Value, string Color);
+}

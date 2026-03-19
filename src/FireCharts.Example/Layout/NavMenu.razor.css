@@ -242,6 +242,8 @@
     justify-content: center;
     align-items: center;
     flex: 0 0 auto;
+    width: auto;
+    min-width: auto;
 }
 
 .nav-frame.is-compact.is-desktop .top-row {
@@ -282,8 +284,16 @@
 }
 
 .nav-frame.is-compact.is-desktop .brand-mark {
+    display: block;
     width: 5em;
     height: 5em;
+}
+
+.nav-frame.is-compact.is-desktop .brand-copy {
+    width: 0;
+    min-width: 0;
+    max-width: 0;
+    overflow: hidden;
 }
 
 .nav-frame.is-compact.is-desktop .nav-item ::deep a {
