@@ -10,6 +10,7 @@
     [Parameter] public string? TextAnchor { get; set; }
     [Parameter] public string? DominantBaseline { get; set; }
     [Parameter] public string? CssClass { get; set; }
+    [Parameter] public string? Transform { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public string Content { get; set; } = "";
 
@@ -28,6 +29,9 @@
 
         if (!string.IsNullOrEmpty(CssClass))
             attrs += $" class=\"{CssClass}\"";
+
+        if (!string.IsNullOrEmpty(Transform))
+            attrs += $" transform=\"{Transform}\"";
 
         return $"<text {attrs}>{System.Net.WebUtility.HtmlEncode(Content)}</text>";
     }

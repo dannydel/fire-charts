@@ -1,0 +1,246 @@
+@page "/heatmapchart"
+
+@using System.Globalization
+@using FireCharts.Example.Components
+@using FireCharts.Models
+
+<PageTitle>Heatmap Chart</PageTitle>
+
+<PageIntro Kicker="Operational intensity"
+           Title="Heatmaps make peaks, lulls, and staffing pressure visible at a glance."
+           Description="This first heatmap release focuses on matrix-style operational views like day by hour demand, while keeping the API generic enough for other row and column combinations.">
+    <div class="stat-strip" aria-label="Heatmap design goals">
+        <div class="stat-pill"><strong>Patterns</strong><span>See demand concentration without reading 168 separate numbers</span></div>
+        <div class="stat-pill"><strong>Gaps</strong><span>Missing combinations stay visible instead of silently collapsing out of the grid</span></div>
+        <div class="stat-pill"><strong>Interaction</strong><span>Hover, focus, and keyboard selection work the same way as the rest of the library</span></div>
+    </div>
+</PageIntro>
+
+<section class="chart-grid">
+    <ChartDemoCard Kicker="Day x hour matrix"
+                   Title="Incident demand by hour"
+                   Description="A day by hour heatmap surfaces overnight quiet periods, weekday surges, and the evening shoulder when volume starts climbing again.">
+        <ChildContent>
+            <div class="chart-scroll">
+                <FireHeatmapChart TItem="DispatchHeatCell"
+                                  Title="Incident demand by hour"
+                                  Description="Average incident volume by weekday and hour"
+                                  Width="920"
+                                  Height="430"
+                                  Responsive="true"
+                                  Items="@DispatchMatrix"
+                                  RowKeySelector="item => item.DayKey"
+                                  RowLabelSelector="item => item.DayLabel"
+                                  RowOrderSelector="item => item.DayOrder"
+                                  ColumnKeySelector="item => item.HourKey"
+                                  ColumnLabelSelector="item => item.HourLabel"
+                                  ColumnOrderSelector="item => item.HourOrder"
+                                  ValueSelector="item => item.Calls"
+                                  ValueFormat="F0"
+                                  LowColor="#fff2db"
+                                  HighColor="#cf4026"
+                                  MissingCellColor="#f7ece3"
+                                  CellGap="2.5"
+                                  @bind-SelectedItem="SelectedDispatchCell">
+                    <TooltipTemplate Context="cell">
+                        <div class="demo-tooltip-title">@cell.RowLabel</div>
+                        <div>@cell.ColumnLabel</div>
+                        <div>@cell.Value.ToString("F0", CultureInfo.InvariantCulture) avg incidents</div>
+                    </TooltipTemplate>
+                </FireHeatmapChart>
+            </div>
+        </ChildContent>
+        <FooterContent>
+            <p class="selection-note" role="status" aria-live="polite">
+                @if (SelectedDispatchCell is not null)
+                {
+                    <span><strong>Selected:</strong> @SelectedDispatchCell.DayLabel at @SelectedDispatchCell.HourLabel (@SelectedDispatchCell.Calls.ToString("F0", CultureInfo.InvariantCulture) incidents)</span>
+                }
+                else
+                {
+                    <span>Select a cell to pin a specific operating window.</span>
+                }
+            </p>
+        </FooterContent>
+    </ChartDemoCard>
+
+    <ChartDemoCard Kicker="Crew readiness"
+                   Title="Station utilization by shift"
+                   Description="Heatmaps also work for smaller operational matrices when teams need to compare stations against shifts or service windows."
+                   Compact="true">
+        <ChildContent>
+            <FireHeatmapChart TItem="UtilizationCell"
+                              Title="Station utilization by shift"
+                              Description="Share of unit capacity in use"
+                              Width="460"
+                              Height="340"
+                              Responsive="true"
+                              Items="@UtilizationMatrix"
+                              RowKeySelector="item => item.StationKey"
+                              RowLabelSelector="item => item.StationLabel"
+                              RowOrderSelector="item => item.StationOrder"
+                              ColumnKeySelector="item => item.ShiftKey"
+                              ColumnLabelSelector="item => item.ShiftLabel"
+                              ColumnOrderSelector="item => item.ShiftOrder"
+                              ValueSelector="item => item.Utilization"
+                              ColorSelector="item => item.Fill"
+                              ValueFormat="P0"
+                              ShowTooltip="true"
+                              ShowLegend="true"
+                              CellGap="6">
+                <TooltipTemplate Context="cell">
+                    <div class="demo-tooltip-title">@cell.RowLabel</div>
+                    <div>@cell.ColumnLabel shift</div>
+                    <div>@cell.Value.ToString("P0", CultureInfo.InvariantCulture) utilization</div>
+                </TooltipTemplate>
+            </FireHeatmapChart>
+        </ChildContent>
+    </ChartDemoCard>
+</section>
+
+<ExampleDocsSection Title="Heatmap chart code examples"
+                    Description="Use the heatmap when rows and columns are both categorical and the value is best understood as intensity or load."
+                    CodeTitle="Render a typed matrix heatmap"
+                    CodeDescription="Map the row and column identity with selectors, supply an order when the categories have a natural sequence, and bind selection when the rest of the UI needs the chosen cell."
+                    CodeExample="@HeatmapChartUsageExample"
+                    ApiTitle="Most useful parameters"
+                    ApiDescription="These cover the first release scenarios: operational matrices, ordering, selection, and custom tooltip content."
+                    ApiItems="@HeatmapChartApiItems" />
+
+@code {
+    private static readonly string[] DayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
+    private static readonly string[] DayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+    private DispatchHeatCell? SelectedDispatchCell { get; set; }
+
+    private IReadOnlyList<DispatchHeatCell> DispatchMatrix { get; } = BuildDispatchMatrix();
+
+    private IReadOnlyList<UtilizationCell> UtilizationMatrix { get; } =
+    [
+        new("station-1", "Station 1", 0, "day", "Day", 0, 0.68, "#f5d38a"),
+        new("station-1", "Station 1", 0, "swing", "Swing", 1, 0.82, "#ef9a52"),
+        new("station-1", "Station 1", 0, "night", "Night", 2, 0.56, "#f4e3b0"),
+        new("station-2", "Station 2", 1, "day", "Day", 0, 0.74, "#f3c773"),
+        new("station-2", "Station 2", 1, "swing", "Swing", 1, 0.91, "#db6236"),
+        new("station-2", "Station 2", 1, "night", "Night", 2, 0.61, "#f0d993"),
+        new("station-4", "Station 4", 2, "day", "Day", 0, 0.58, "#f5dfac"),
+        new("station-4", "Station 4", 2, "swing", "Swing", 1, 0.79, "#ef8b47"),
+        new("station-4", "Station 4", 2, "night", "Night", 2, 0.66, "#f3c77a"),
+        new("station-7", "Station 7", 3, "day", "Day", 0, 0.63, "#f4d79a"),
+        new("station-7", "Station 7", 3, "swing", "Swing", 1, 0.87, "#e7713e")
+    ];
+
+    private string HeatmapChartUsageExample => """
+@using FireCharts.Components
+
+@code {
+    private HeatCell? selectedCell;
+
+    private IReadOnlyList<HeatCell> load =
+    [
+        new("mon", "Mon", 0, "06", "6a", 6, 14),
+        new("mon", "Mon", 0, "07", "7a", 7, 18),
+        new("tue", "Tue", 1, "06", "6a", 6, 12)
+    ];
+
+    private sealed record HeatCell(
+        string DayKey,
+        string DayLabel,
+        int DayOrder,
+        string HourKey,
+        string HourLabel,
+        int HourOrder,
+        double Value);
+}
+
+<FireHeatmapChart TItem="HeatCell"
+                  Title="Incident load"
+                  Description="Average incident volume by day and hour"
+                  Items="@load"
+                  RowKeySelector="item => item.DayKey"
+                  RowLabelSelector="item => item.DayLabel"
+                  RowOrderSelector="item => item.DayOrder"
+                  ColumnKeySelector="item => item.HourKey"
+                  ColumnLabelSelector="item => item.HourLabel"
+                  ColumnOrderSelector="item => item.HourOrder"
+                  ValueSelector="item => item.Value"
+                  Responsive="true"
+                  @bind-SelectedItem="selectedCell" />
+""";
+
+    private IReadOnlyList<ExampleApiItem> HeatmapChartApiItems { get; } =
+    [
+        new("RowKeySelector and ColumnKeySelector", "Identify the matrix coordinates for each item without reshaping your data into a special chart model."),
+        new("RowOrderSelector and ColumnOrderSelector", "Keep natural sequences like weekdays, shifts, and hours stable instead of relying on input order."),
+        new("ValueSelector", "Map the numeric intensity value rendered through the heat scale."),
+        new("@bind-SelectedItem", "Keep the chosen cell in sync with the rest of the page or dashboard."),
+        new("ColorSelector", "Override the interpolated palette when you already have a domain-specific severity color."),
+        new("TooltipTemplate", "Render richer operational detail than the default row, column, and value output.")
+    ];
+
+    private static IReadOnlyList<DispatchHeatCell> BuildDispatchMatrix()
+    {
+        var cells = new List<DispatchHeatCell>();
+
+        for (var dayIndex = 0; dayIndex < DayKeys.Length; dayIndex++)
+        {
+            for (var hour = 0; hour < 24; hour++)
+            {
+                if (dayIndex == 6 && hour == 3)
+                {
+                    continue;
+                }
+
+                var peak = hour switch
+                {
+                    >= 7 and <= 9 => 4.5,
+                    >= 11 and <= 13 => 6.5,
+                    >= 16 and <= 19 => 9.5,
+                    >= 20 and <= 22 => 4.2,
+                    _ => 0.9
+                };
+
+                var weekendAdjustment = dayIndex >= 5 ? 2.4 : 0;
+                var weekdayAdjustment = dayIndex is >= 1 and <= 4 ? 1.2 : 0;
+                var overnightPenalty = hour is >= 0 and <= 4 ? -0.4 : 0;
+                var value = Math.Max(0, 5 + peak + weekendAdjustment + weekdayAdjustment + overnightPenalty + (dayIndex * 0.35));
+
+                cells.Add(new DispatchHeatCell(
+                    DayKeys[dayIndex],
+                    DayLabels[dayIndex],
+                    dayIndex,
+                    hour.ToString("00", CultureInfo.InvariantCulture),
+                    FormatHourLabel(hour),
+                    hour,
+                    Math.Round(value, 0)));
+            }
+        }
+
+        return cells;
+    }
+
+    private static string FormatHourLabel(int hour)
+    {
+        var date = new DateTime(2026, 1, 1, hour, 0, 0, DateTimeKind.Utc);
+        return date.ToString("htt", CultureInfo.InvariantCulture).ToLowerInvariant();
+    }
+
+    private sealed record DispatchHeatCell(
+        string DayKey,
+        string DayLabel,
+        int DayOrder,
+        string HourKey,
+        string HourLabel,
+        int HourOrder,
+        double Calls);
+
+    private sealed record UtilizationCell(
+        string StationKey,
+        string StationLabel,
+        int StationOrder,
+        string ShiftKey,
+        string ShiftLabel,
+        int ShiftOrder,
+        double Utilization,
+        string Fill);
+}

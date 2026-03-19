@@ -26,6 +26,7 @@
             <a class="button-link" href="barchart">See bar chart demos</a>
             <a class="button-link" href="piechart">See pie chart demos</a>
             <a class="button-link" href="scatterchart">See scatter chart demos</a>
+            <a class="button-link" href="heatmapchart">See heatmap demos</a>
         </div>
 
         <div class="home-hero__stats" aria-label="Library highlights">
@@ -102,7 +103,7 @@
 <section class="home-showcase">
     <div class="section-heading">
         <p class="section-kicker">Component showcase</p>
-        <h2>Four chart types, each presented like a polished product feature.</h2>
+        <h2>Five chart types, each presented like a polished product feature.</h2>
         <p class="section-lede">
             The homepage now introduces the library through compact, high-signal examples and a short explanation of
             where each component shines.
@@ -225,6 +226,38 @@
                 </div>
             </FooterContent>
         </ChartDemoCard>
+
+        <ChartDemoCard Kicker="Heatmap"
+                       Title="Operating pressure across the week"
+                       Description="Heatmaps are ideal when both axes are categorical and the story is in concentration, peaks, and cold spots."
+                       Compact="true">
+            <ChildContent>
+                <FireHeatmapChart TItem="MiniHeatmapPoint"
+                                  Title="Call load by day and shift"
+                                  Description="Average call load by weekday and shift"
+                                  Width="420"
+                                  Height="320"
+                                  Responsive="true"
+                                  Items="@MiniHeatmap"
+                                  RowKeySelector="point => point.DayKey"
+                                  RowLabelSelector="point => point.DayLabel"
+                                  RowOrderSelector="point => point.DayOrder"
+                                  ColumnKeySelector="point => point.ShiftKey"
+                                  ColumnLabelSelector="point => point.ShiftLabel"
+                                  ColumnOrderSelector="point => point.ShiftOrder"
+                                  ValueSelector="point => point.Value"
+                                  ShowTooltip="false"
+                                  CellGap="8"
+                                  LowColor="#fff1d7"
+                                  HighColor="#d94f3d" />
+            </ChildContent>
+            <FooterContent>
+                <div class="home-card-footer">
+                    <span class="home-chip">Day-hour or shift matrices</span>
+                    <span class="home-chip">Continuous intensity legend</span>
+                </div>
+            </FooterContent>
+        </ChartDemoCard>
     </div>
 </section>
 
@@ -329,6 +362,25 @@
         new("Central", 156, 6.1, "#8a7cf6", "#6257c4")
     ];
 
+    private IReadOnlyList<MiniHeatmapPoint> MiniHeatmap { get; } =
+    [
+        new("mon", "Mon", 0, "day", "Day", 0, 11),
+        new("mon", "Mon", 0, "swing", "Swing", 1, 17),
+        new("mon", "Mon", 0, "night", "Night", 2, 7),
+        new("tue", "Tue", 1, "day", "Day", 0, 13),
+        new("tue", "Tue", 1, "swing", "Swing", 1, 18),
+        new("tue", "Tue", 1, "night", "Night", 2, 8),
+        new("wed", "Wed", 2, "day", "Day", 0, 12),
+        new("wed", "Wed", 2, "swing", "Swing", 1, 20),
+        new("wed", "Wed", 2, "night", "Night", 2, 9),
+        new("thu", "Thu", 3, "day", "Day", 0, 14),
+        new("thu", "Thu", 3, "swing", "Swing", 1, 19),
+        new("thu", "Thu", 3, "night", "Night", 2, 10),
+        new("fri", "Fri", 4, "day", "Day", 0, 16),
+        new("fri", "Fri", 4, "swing", "Swing", 1, 22),
+        new("fri", "Fri", 4, "night", "Night", 2, 12)
+    ];
+
     private string HomeUsageExample => """
 @using FireCharts.Components
 @using FireCharts.Models
@@ -349,4 +401,5 @@
     private sealed record MiniBarPoint(string Label, double Value, string Color, string HoverColor);
     private sealed record MiniSlice(string Label, double Value, string Color);
     private sealed record MiniScatterPoint(string Label, double Volume, double ResponseMinutes, string Color, string HoverColor);
+    private sealed record MiniHeatmapPoint(string DayKey, string DayLabel, int DayOrder, string ShiftKey, string ShiftLabel, int ShiftOrder, double Value);
 }

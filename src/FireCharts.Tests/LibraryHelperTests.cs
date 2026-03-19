@@ -31,6 +31,7 @@ public sealed class LibraryHelperTests : TestContext
             .Add(component => component.TextAnchor, "middle")
             .Add(component => component.DominantBaseline, "middle")
             .Add(component => component.CssClass, "label")
+            .Add(component => component.Transform, "rotate(-45 10 12)")
             .Add(component => component.Content, "<Heat & Smoke>"));
 
         var text = cut.Find("text");
@@ -40,6 +41,7 @@ public sealed class LibraryHelperTests : TestContext
         Assert.Equal("middle", text.GetAttribute("text-anchor"));
         Assert.Equal("middle", text.GetAttribute("dominant-baseline"));
         Assert.Equal("label", text.GetAttribute("class"));
+        Assert.Equal("rotate(-45 10 12)", text.GetAttribute("transform"));
         Assert.Equal("<Heat & Smoke>", text.TextContent);
         Assert.Contains("&lt;Heat &amp; Smoke&gt;", cut.Markup);
     }
@@ -52,9 +54,11 @@ public sealed class LibraryHelperTests : TestContext
         var xValue = LineChartXValue.FromNumber(5);
 
         var barPoint = new BarChartPoint<string>("Permits", 2, "March", 17, "#123456", "#234567", rect, "March: 17", true, false, true);
+        var heatmapCell = new HeatmapCell<string>("Dispatch", 1, 3, "mon", "Mon", "07", "7a", 11, rect, "#abcdef", true, false, true, "Mon, 7a: 11");
         var piePoint = new PieChartPoint<string>("Calls", 1, "Suppression", 12, 0.4, "#abcdef", "#bcdef0", "M 0 0", point, point, point, true, "Suppression: 12", false, true, false);
         var linePoint = new LineChartPoint<string>("Inspections", 0, "Series A", 3, "Q3", xValue, 42, point, "#111111", "#222222", "#333333", true, false, true, false, "Series A Q3: 42");
         var pointInteraction = new ChartPointInteraction<string>("Incidents", 4, "April", 8);
+        var heatmapInteraction = new HeatmapCellInteraction<string>("Dispatch", 1, 3, "mon", "Mon", "07", "7a", 11);
         var lineInteraction = new LineChartPointInteraction<string>("Incidents", 1, "Series B", 2, "April", xValue, 8);
         var series = new LineChartSeries<string>("Series B", ["A", "B"], "#444444", "#555555", "#666666", "#777777", 3.5, 0.25);
         var surface = new ChartSurfaceContext(640, 320);
@@ -65,6 +69,9 @@ public sealed class LibraryHelperTests : TestContext
         Assert.Equal("2:March", barPoint.Key);
         Assert.Equal(("Permits", 17d, true, true), (barPoint.Item, barPoint.Value, barPoint.IsSelected, barPoint.IsFocused));
 
+        Assert.Equal("1:3:mon:07", heatmapCell.Key);
+        Assert.Equal(("Dispatch", "Mon", "7a", 11d), (heatmapCell.Item, heatmapCell.RowLabel, heatmapCell.ColumnLabel, heatmapCell.Value));
+
         Assert.Equal("1:Suppression", piePoint.Key);
         Assert.Equal(("Calls", 0.4d, true), (piePoint.Item, piePoint.Percentage, piePoint.IsHovered));
 
@@ -72,6 +79,7 @@ public sealed class LibraryHelperTests : TestContext
         Assert.Equal(("Series A", 42d, true), (linePoint.SeriesName, linePoint.Y, linePoint.IsHighlighted));
 
         Assert.Equal(("Incidents", 4, "April", 8d), (pointInteraction.Item, pointInteraction.Index, pointInteraction.Label, pointInteraction.Value));
+        Assert.Equal(("Dispatch", 1, 3, "Mon", "7a", 11d), (heatmapInteraction.Item, heatmapInteraction.RowIndex, heatmapInteraction.ColumnIndex, heatmapInteraction.RowLabel, heatmapInteraction.ColumnLabel, heatmapInteraction.Value));
         Assert.Equal(("Series B", 2, "April", 8d), (lineInteraction.SeriesName, lineInteraction.PointIndex, lineInteraction.Label, lineInteraction.Y));
         Assert.Equal(("Series B", "#666666", "#777777", 3.5d, 0.25d), (series.Name, series.StrokeColor, series.FillColor, series.StrokeWidth, series.AreaOpacity));
         Assert.Equal((640d, 320d), (surface.Width, surface.Height));

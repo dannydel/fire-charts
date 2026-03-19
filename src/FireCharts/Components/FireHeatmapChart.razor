@@ -1,0 +1,141 @@
+@namespace FireCharts.Components
+@typeparam TItem
+@using System.Globalization
+@using Microsoft.AspNetCore.Components.Web
+@using FireCharts.Models
+
+<div class="fire-heatmap-chart-shell">
+    <ChartSurface Title="@Title"
+                  Description="@Description"
+                  Width="@Width"
+                  Height="@Height"
+                  Responsive="@Responsive"
+                  HostCssClass="fire-heatmap-chart-host"
+                  SvgCssClass="fire-heatmap-chart">
+        <ChildContent Context="surface">
+            @{
+                UpdateSurfaceSize(surface);
+            }
+
+            @if (Cells.Count == 0)
+            {
+                @if (EmptyStateTemplate is not null)
+                {
+                    @EmptyStateTemplate
+                }
+                else
+                {
+                    <SvgText X="@(surface.Width / 2)"
+                             Y="@(surface.Height / 2)"
+                             TextAnchor="middle"
+                             CssClass="empty-state"
+                             Content="No data" />
+                }
+            }
+            else
+            {
+                <g class="heatmap-grid">
+                    <rect x="@Fmt(ChartAreaLeft)"
+                          y="@Fmt(ChartAreaTop)"
+                          width="@Fmt(ChartAreaWidth)"
+                          height="@Fmt(ChartAreaHeight)"
+                          class="heatmap-frame" />
+
+                    @foreach (var cell in PlaceholderCells)
+                    {
+                        <rect class="heatmap-cell heatmap-cell--placeholder"
+                              x="@Fmt(cell.Rect.X)"
+                              y="@Fmt(cell.Rect.Y)"
+                              width="@Fmt(cell.Rect.Width)"
+                              height="@Fmt(cell.Rect.Height)"
+                              rx="@Fmt(SafeCornerRadius)"
+                              ry="@Fmt(SafeCornerRadius)"
+                              fill="@cell.Fill" />
+                    }
+
+                    @foreach (var cell in Cells)
+                    {
+                        <g @key="cell.Key"
+                           class="@GetCellClasses(cell)"
+                           tabindex="0"
+                           role="button"
+                           aria-label="@cell.AccessibleLabel"
+                           aria-selected="@cell.IsSelected"
+                           @onmouseover="() => HandleHoverAsync(cell)"
+                           @onmouseout="() => HandleHoverLeaveAsync(cell)"
+                           @onfocus="() => HandleFocusAsync(cell)"
+                           @onblur="() => HandleBlurAsync(cell)"
+                           @onclick="() => HandleSelectAsync(cell)"
+                           @onkeydown="args => HandleKeyDownAsync(args, cell)">
+                            <rect class="heatmap-cell"
+                                  x="@Fmt(cell.Rect.X)"
+                                  y="@Fmt(cell.Rect.Y)"
+                                  width="@Fmt(cell.Rect.Width)"
+                                  height="@Fmt(cell.Rect.Height)"
+                                  rx="@Fmt(SafeCornerRadius)"
+                                  ry="@Fmt(SafeCornerRadius)"
+                                  fill="@cell.Fill"
+                                  style="@GetCellStyle(cell)">
+                                <title>@cell.AccessibleLabel</title>
+                            </rect>
+                        </g>
+                    }
+                </g>
+
+                @if (ShowAxisLabels)
+                {
+                    <g class="heatmap-axis heatmap-axis--rows">
+                        @foreach (var row in Rows)
+                        {
+                            <SvgText X="@(ChartAreaLeft - 12)"
+                                     Y="@(row.CenterY)"
+                                     CssClass="axis-label heatmap-row-label"
+                                     TextAnchor="end"
+                                     DominantBaseline="middle"
+                                     Content="@row.Label" />
+                        }
+                    </g>
+
+                    <g class="heatmap-axis heatmap-axis--columns">
+                        @foreach (var column in Columns)
+                        {
+                            <SvgText X="@(column.CenterX)"
+                                     Y="@(ChartAreaBottom + 28)"
+                                     CssClass="axis-label heatmap-column-label"
+                                     TextAnchor="end"
+                                     Transform="@($"rotate(-45 {Fmt(column.CenterX)} {Fmt(ChartAreaBottom + 28)})")"
+                                     Content="@column.Label" />
+                        }
+                    </g>
+                }
+            }
+        </ChildContent>
+        <OverlayContent>
+            @if (ShowTooltip && HoveredCell is not null)
+            {
+                <div class="chart-tooltip"
+                     style="@GetTooltipStyle(HoveredCell)">
+                    @if (TooltipTemplate is not null)
+                    {
+                        @TooltipTemplate(HoveredCell)
+                    }
+                    else
+                    {
+                        <div class="tooltip-series">@HoveredCell.RowLabel</div>
+                        <div class="tooltip-label">@HoveredCell.ColumnLabel</div>
+                        <div class="tooltip-value">@HoveredCell.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)</div>
+                    }
+                </div>
+            }
+        </OverlayContent>
+    </ChartSurface>
+
+    @if (ShowLegend && Cells.Count > 0)
+    {
+        <div class="heatmap-legend" aria-label="@($"{Title} intensity scale")">
+            <span class="heatmap-legend__value heatmap-legend__value--min">@LegendMinLabel</span>
+            <div class="heatmap-legend__scale" style="@LegendScaleStyle" aria-hidden="true"></div>
+            <span class="heatmap-legend__value heatmap-legend__value--max">@LegendMaxLabel</span>
+        </div>
+    }
+</div>
