@@ -1,0 +1,221 @@
+@namespace FireCharts.Components
+@typeparam TItem
+@typeparam TSegment
+@using System.Globalization
+@using Microsoft.AspNetCore.Components.Web
+@using FireCharts.Models
+
+<div class="@ShellCssClasses">
+    @if (ShouldRenderLegendBeforeChart)
+    {
+        @RenderLegend()
+    }
+
+    <ChartSurface Title="@Title"
+                  Description="@Description"
+                  Width="@Width"
+                  Height="@Height"
+                  Responsive="@Responsive"
+                  HostCssClass="fire-stacked-bar-chart-host"
+                  SvgCssClass="fire-stacked-bar-chart">
+        <ChildContent Context="surface">
+            @{
+                UpdateSurfaceSize(surface);
+            }
+
+            @if (Segments.Count == 0)
+            {
+                @if (EmptyStateTemplate is not null)
+                {
+                    @EmptyStateTemplate
+                }
+                else
+                {
+                    <SvgText X="@(surface.Width / 2)"
+                             Y="@(surface.Height / 2)"
+                             TextAnchor="middle"
+                             CssClass="empty-state"
+                             Content="No data" />
+                }
+            }
+            else
+            {
+                @if (ShowGridLines)
+                {
+                    <g class="grid-lines">
+                        @for (var i = 0; i <= SafeGridLineCount; i++)
+                        {
+                            var fraction = (double)i / SafeGridLineCount;
+
+                            if (Horizontal)
+                            {
+                                var x = ChartAreaLeft + fraction * ChartAreaWidth;
+                                <line x1="@Fmt(x)"
+                                      y1="@Fmt(ChartAreaTop)"
+                                      x2="@Fmt(x)"
+                                      y2="@Fmt(ChartAreaBottom)"
+                                      class="grid-line" />
+                            }
+                            else
+                            {
+                                var y = ChartAreaBottom - fraction * ChartAreaHeight;
+                                <line x1="@Fmt(ChartAreaLeft)"
+                                      y1="@Fmt(y)"
+                                      x2="@Fmt(ChartAreaRight)"
+                                      y2="@Fmt(y)"
+                                      class="grid-line" />
+                            }
+                        }
+                    </g>
+                }
+
+                <g class="axes">
+                    <line x1="@Fmt(ChartAreaLeft)" y1="@Fmt(ChartAreaTop)"
+                          x2="@Fmt(ChartAreaLeft)" y2="@Fmt(ChartAreaBottom)"
+                          class="axis-line" />
+                    <line x1="@Fmt(ChartAreaLeft)" y1="@Fmt(ChartAreaBottom)"
+                          x2="@Fmt(ChartAreaRight)" y2="@Fmt(ChartAreaBottom)"
+                          class="axis-line" />
+                </g>
+
+                @if (ShowAxisLabels)
+                {
+                    <g class="value-axis-labels">
+                        @for (var i = 0; i <= SafeGridLineCount; i++)
+                        {
+                            var fraction = (double)i / SafeGridLineCount;
+                            var value = ComputedMaxValue * fraction;
+
+                            if (Horizontal)
+                            {
+                                var x = ChartAreaLeft + fraction * ChartAreaWidth;
+                                <SvgText X="@x"
+                                         Y="@(ChartAreaBottom + 20)"
+                                         CssClass="axis-label"
+                                         TextAnchor="middle"
+                                         Content="@value.ToString(ValueFormat, CultureInfo.InvariantCulture)" />
+                            }
+                            else
+                            {
+                                var y = ChartAreaBottom - fraction * ChartAreaHeight;
+                                <SvgText X="@(ChartAreaLeft - 8)"
+                                         Y="@y"
+                                         CssClass="axis-label"
+                                         TextAnchor="end"
+                                         DominantBaseline="middle"
+                                         Content="@value.ToString(ValueFormat, CultureInfo.InvariantCulture)" />
+                            }
+                        }
+                    </g>
+
+                    <g class="category-axis-labels">
+                        @foreach (var bar in Bars)
+                        {
+                            if (Horizontal)
+                            {
+                                <SvgText X="@(ChartAreaLeft - 8)"
+                                         Y="@(bar.AxisLabelPoint.Y)"
+                                         CssClass="axis-label"
+                                         TextAnchor="end"
+                                         DominantBaseline="middle"
+                                         Content="@bar.Label" />
+                            }
+                            else
+                            {
+                                <SvgText X="@(bar.AxisLabelPoint.X)"
+                                         Y="@(ChartAreaBottom + 20)"
+                                         CssClass="axis-label"
+                                         TextAnchor="middle"
+                                         Content="@bar.Label" />
+                            }
+                        }
+                    </g>
+                }
+
+                <g class="stacked-bar-series @(HasLegendHover ? "has-legend-hover" : null)" role="list" aria-label="@Title">
+                    @foreach (var segment in Segments)
+                    {
+                        <g @key="segment.Key"
+                           class="@GetSegmentClasses(segment)"
+                           role="listitem"
+                           tabindex="0"
+                           aria-label="@segment.AccessibleLabel"
+                           aria-selected="@segment.IsSelected"
+                           @onmouseover="() => HandleHoverAsync(segment)"
+                           @onmouseout="() => HandleHoverLeaveAsync(segment)"
+                           @onfocus="() => HandleFocusAsync(segment)"
+                           @onblur="() => HandleBlurAsync(segment)"
+                           @onclick="() => HandleSelectAsync(segment)"
+                           @onkeydown="(args) => HandleKeyDownAsync(args, segment)">
+                            <rect class="stacked-segment-rect"
+                                  x="@Fmt(segment.Rect.X)"
+                                  y="@Fmt(segment.Rect.Y)"
+                                  width="@Fmt(segment.Rect.Width)"
+                                  height="@Fmt(segment.Rect.Height)"
+                                  rx="@Fmt(CornerRadius)"
+                                  ry="@Fmt(CornerRadius)"
+                                  style="--segment-color: @segment.Fill; --segment-hover-color: @segment.HoverFill">
+                                <title>@segment.AccessibleLabel</title>
+                            </rect>
+                        </g>
+                    }
+                </g>
+
+                @if (ChartContentTemplate is not null)
+                {
+                    <g class="stacked-chart-content">
+                        @ChartContentTemplate(ChartContext)
+                    </g>
+                }
+            }
+        </ChildContent>
+        <OverlayContent>
+            @if (ShowTooltip && HoveredSegment is not null)
+            {
+                <div class="chart-tooltip"
+                     style="@GetTooltipStyle(HoveredSegment)">
+                    @if (TooltipTemplate is not null)
+                    {
+                        @TooltipTemplate(HoveredSegment)
+                    }
+                    else
+                    {
+                        <div class="tooltip-label">@HoveredSegment.BarLabel</div>
+                        <div class="tooltip-series">@HoveredSegment.SegmentLabel</div>
+                        <div class="tooltip-value">@HoveredSegment.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)</div>
+                    }
+                </div>
+            }
+        </OverlayContent>
+    </ChartSurface>
+
+    @if (!ShouldRenderLegendBeforeChart)
+    {
+        @RenderLegend()
+    }
+</div>
+
+@code {
+    private RenderFragment RenderLegend() => @<text>
+        @if (ShowLegend && LegendItems.Count > 0)
+        {
+            <div class="stacked-bar-legend" role="list" aria-label="@($"{Title} legend")">
+                @foreach (var legendItem in LegendItems)
+                {
+                    <button type="button"
+                            class="@GetLegendItemClasses(legendItem)"
+                            role="listitem"
+                            @onmouseover="() => HandleLegendEnter(legendItem.Label)"
+                            @onmouseout="HandleLegendLeave"
+                            @onfocus="() => HandleLegendEnter(legendItem.Label)"
+                            @onblur="HandleLegendLeave">
+                        <span class="stacked-bar-legend__swatch"
+                              style="@($"--legend-color: {legendItem.Fill}")"
+                              aria-hidden="true"></span>
+                        <span class="stacked-bar-legend__label">@legendItem.Label</span>
+                    </button>
+                }
+            </div>
+        }
+    </text>;
+}

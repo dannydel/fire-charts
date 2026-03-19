@@ -11,6 +11,7 @@ A lightweight Blazor charting library with an example app and test project.
 ## Included Components
 
 - `FireBarChart`
+- `FireStackedBarChart`
 - `FireLineChart`
 - `FirePieChart`
 

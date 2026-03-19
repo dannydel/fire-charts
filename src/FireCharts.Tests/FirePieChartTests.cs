@@ -95,6 +95,7 @@ public sealed class FirePieChartTests : TestContext
         var firstSlice = cut.Find("path.pie-slice");
 
         Assert.Equal(3, cut.FindAll(".pie-legend__item").Count);
+        Assert.Equal(3, cut.FindAll("button.pie-legend__item").Count);
         Assert.Empty(cut.FindAll(".pie-slice-label-box"));
         Assert.Contains("--slice-color: #111111; --slice-hover-color: #212121", firstSlice.GetAttribute("style"));
     }
@@ -164,6 +165,64 @@ public sealed class FirePieChartTests : TestContext
             Assert.NotNull(clicked);
             Assert.Equal(7, clicked!.Value);
             Assert.Contains("is-selected", cut.FindAll("g.pie-slice-group")[1].GetAttribute("class"));
+        });
+    }
+
+    [Fact]
+    public void LegendItemsSupportHoverFocusAndClickSelection()
+    {
+        var data = new[]
+        {
+            new PieDatum("Suppression", 12),
+            new PieDatum("Medical", 7),
+            new PieDatum("Rescue", 5)
+        };
+
+        ChartPointInteraction<PieDatum>? hovered = null;
+        ChartPointInteraction<PieDatum>? clicked = null;
+        PieDatum? selected = null;
+
+        var cut = RenderComponent<FirePieChart<PieDatum>>(parameters => parameters
+            .Add(component => component.Items, data)
+            .Add(component => component.ValueSelector, item => item.Value)
+            .Add(component => component.LabelSelector, item => item.Label)
+            .Add(component => component.LabelMode, PieChartLabelMode.Legend)
+            .Add(component => component.OnPointHoverChanged, (Action<ChartPointInteraction<PieDatum>>)(interaction => hovered = interaction))
+            .Add(component => component.OnPointClick, (Action<ChartPointInteraction<PieDatum>>)(interaction => clicked = interaction))
+            .Add(component => component.SelectedItemChanged, (Action<PieDatum?>)(item => selected = item))
+            .Add(component => component.TooltipTemplate, (RenderFragment<PieChartPoint<PieDatum>>)(point => builder =>
+            {
+                builder.OpenElement(0, "div");
+                builder.AddAttribute(1, "class", "custom-pie-tooltip");
+                builder.AddContent(2, $"legend-tooltip-{point.Label}");
+                builder.CloseElement();
+            })));
+
+        cut.FindAll("button.pie-legend__item")[2].MouseOver();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(hovered);
+            Assert.Equal("Rescue", hovered!.Label);
+            Assert.Contains("legend-tooltip-Rescue", cut.Markup);
+            Assert.Contains("is-hovered", cut.FindAll("g.pie-slice-group")[2].GetAttribute("class"));
+        });
+
+        cut.FindAll("button.pie-legend__item")[2].Focus();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("is-focused", cut.FindAll("g.pie-slice-group")[2].GetAttribute("class"));
+        });
+
+        cut.FindAll("button.pie-legend__item")[1].Click();
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(selected);
+            Assert.Equal("Medical", selected!.Label);
+            Assert.NotNull(clicked);
+            Assert.Equal("Medical", clicked!.Label);
+            Assert.Contains("is-selected", cut.FindAll("g.pie-slice-group")[1].GetAttribute("class"));
+            Assert.Contains("is-selected", cut.FindAll("button.pie-legend__item")[1].GetAttribute("class"));
         });
     }
 

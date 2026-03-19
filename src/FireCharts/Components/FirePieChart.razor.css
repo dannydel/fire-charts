@@ -206,11 +206,24 @@
         box-shadow 300ms cubic-bezier(0.2, 0.8, 0.2, 1),
         border-color 220ms cubic-bezier(0.22, 1, 0.36, 1),
         background-color 220ms cubic-bezier(0.22, 1, 0.36, 1);
+    width: 100%;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    appearance: none;
+    outline: none;
 }
 
 .pie-legend__item.is-active {
     border-color: rgba(143, 58, 36, 0.18);
     background: rgba(255, 247, 240, 0.9);
+}
+
+.pie-legend__item:focus-visible {
+    box-shadow:
+        0 0 0 0.2rem rgba(255, 253, 250, 0.95),
+        0 0 0 0.42rem rgba(240, 95, 59, 0.42);
 }
 
 .pie-legend__item.is-selected {

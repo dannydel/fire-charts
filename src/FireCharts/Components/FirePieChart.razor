@@ -156,12 +156,20 @@
         <div class="pie-legend" role="list" aria-label="@($"{Title} legend")">
             @foreach (var point in Points)
             {
-                <div class="@GetLegendItemClasses(point)" role="listitem" aria-selected="@point.IsSelected">
+                <button type="button"
+                        class="@GetLegendItemClasses(point)"
+                        role="listitem"
+                        aria-pressed="@point.IsSelected"
+                        @onmouseover="() => HandleHoverAsync(point)"
+                        @onmouseout="() => HandleHoverLeaveAsync(point)"
+                        @onfocus="() => HandleFocusAsync(point)"
+                        @onblur="() => HandleBlurAsync(point)"
+                        @onclick="() => HandleSelectAsync(point)">
                     <span class="pie-legend__swatch" style="@($"--legend-color: {point.Fill}")" aria-hidden="true"></span>
                     <span class="pie-legend__label">@point.Label</span>
                     <span class="pie-legend__value">@point.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)</span>
                     <span class="pie-legend__percent">@point.Percentage.ToString("P0", CultureInfo.InvariantCulture)</span>
-                </div>
+                </button>
             }
         </div>
     }
