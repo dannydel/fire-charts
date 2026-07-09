@@ -238,7 +238,7 @@ public partial class FireLineChart<TItem> : ComponentBase
                     string.IsNullOrWhiteSpace(definition.Name) ? $"Series {i + 1}" : definition.Name,
                     definition.Items ?? Array.Empty<TItem>(),
                     stroke,
-                    definition.HoverColor ?? Darken(stroke),
+                    definition.HoverColor ?? ChartColor.Darken(stroke),
                     definition.FillColor ?? definition.Color,
                     Math.Clamp(definition.StrokeWidth ?? SafeStrokeWidth, 1.25, 8),
                     Math.Clamp(definition.AreaOpacity ?? SafeAreaOpacity, 0.05, 0.65)));
@@ -826,25 +826,8 @@ public partial class FireLineChart<TItem> : ComponentBase
         return date.ToString("HH:mm", CultureInfo.InvariantCulture);
     }
 
-    private static string Fmt(double value) =>
-        double.IsFinite(value)
-            ? value.ToString("F1", CultureInfo.InvariantCulture)
-            : "0.0";
+    private static string Fmt(double value) => ChartFormat.Fmt(value);
 
     private static double NormalizeZero(double value) =>
         Math.Abs(value) < 0.000001 ? 0 : value;
-
-    private static string Darken(string hex)
-    {
-        if (hex.Length != 7 || !hex.StartsWith('#'))
-        {
-            return "#8f2f1a";
-        }
-
-        var r = Convert.ToInt32(hex[1..3], 16);
-        var g = Convert.ToInt32(hex[3..5], 16);
-        var b = Convert.ToInt32(hex[5..7], 16);
-
-        return $"#{Math.Max(r - 28, 0):X2}{Math.Max(g - 28, 0):X2}{Math.Max(b - 28, 0):X2}";
-    }
 }

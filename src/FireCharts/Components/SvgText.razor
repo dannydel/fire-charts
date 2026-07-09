@@ -16,8 +16,8 @@
 
     private string BuildTextElement()
     {
-        var x = double.IsFinite(X) ? X.ToString("F1", CultureInfo.InvariantCulture) : "0.0";
-        var y = double.IsFinite(Y) ? Y.ToString("F1", CultureInfo.InvariantCulture) : "0.0";
+        var x = ChartFormat.Fmt(X);
+        var y = ChartFormat.Fmt(Y);
 
         var attrs = $"x=\"{x}\" y=\"{y}\"";
 
