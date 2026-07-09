@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using FireCharts.Models;
+using FireCharts.Scales;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -22,6 +23,7 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
     private IReadOnlyList<CategoryState> _categories = Array.Empty<CategoryState>();
     private IReadOnlyList<LegendItem> _legendItems = Array.Empty<LegendItem>();
     private Dictionary<string, int> _segmentIndexByKey = [];
+    private IReadOnlyList<ScaleTick> _valueAxisTicks = Array.Empty<ScaleTick>();
     private double _computedMaxValue = 100;
     private int? _hoveredCategoryIndex;
     private int? _hoveredSegmentIndex;
@@ -132,6 +134,7 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
             Segments);
 
     internal double ComputedMaxValue => _computedMaxValue;
+    internal IReadOnlyList<ScaleTick> ValueAxisTicks => _valueAxisTicks;
 
     protected override void OnParametersSet()
     {
@@ -150,7 +153,8 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
     private void RebuildChartState()
     {
         var items = Items ?? Array.Empty<TItem>();
-        var maxValue = ResolveComputedMaxValue(items);
+        var scale = BuildValueScale(items);
+        var maxValue = scale.Max;
         var safeBarWidthRatio = Math.Clamp(BarWidthRatio, 0.1, 1.0);
         var safeGroupSpacing = Math.Clamp(GroupSpacing, 0, 0.8);
         var safeSeriesSpacing = Math.Clamp(SeriesSpacing, 0, 0.8);
@@ -161,6 +165,7 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
         var legendMap = new Dictionary<string, LegendItem>(StringComparer.Ordinal);
 
         _computedMaxValue = maxValue;
+        _valueAxisTicks = scale.Ticks;
 
         for (var categoryIndex = 0; categoryIndex < items.Count; categoryIndex++)
         {
@@ -673,40 +678,6 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
             ? value.ToString("F1", CultureInfo.InvariantCulture)
             : "0.0";
 
-    private static double GetNiceMax(double max)
-    {
-        if (max <= 0 || !double.IsFinite(max))
-        {
-            return 100;
-        }
-
-        var log = Math.Log10(max);
-        if (!double.IsFinite(log))
-        {
-            return 100;
-        }
-
-        var magnitude = Math.Pow(10, Math.Floor(log));
-        if (magnitude <= 0 || !double.IsFinite(magnitude))
-        {
-            return 100;
-        }
-
-        var normalized = max / magnitude;
-
-        double nice;
-        if (normalized <= 1) nice = 1;
-        else if (normalized <= 1.5) nice = 1.5;
-        else if (normalized <= 2) nice = 2;
-        else if (normalized <= 3) nice = 3;
-        else if (normalized <= 5) nice = 5;
-        else if (normalized <= 7.5) nice = 7.5;
-        else nice = 10;
-
-        var result = nice * magnitude;
-        return double.IsFinite(result) && result > 0 ? result : 100;
-    }
-
     private static string Darken(string hex)
     {
         if (hex.Length != 7 || !hex.StartsWith('#'))
@@ -724,21 +695,23 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
         return $"#{Math.Max((int)(r * 0.78), 0):X2}{Math.Max((int)(g * 0.78), 0):X2}{Math.Max((int)(b * 0.78), 0):X2}";
     }
 
-    private double ResolveComputedMaxValue(IReadOnlyList<TItem> items)
+    private AxisScale BuildValueScale(IReadOnlyList<TItem> items)
     {
-        if (MaxValue.HasValue && MaxValue.Value > 0 && double.IsFinite(MaxValue.Value))
-        {
-            return MaxValue.Value;
-        }
-
-        var max = items
+        var values = items
             .SelectMany(item => (SegmentsSelectorOrThrow(item) ?? Array.Empty<TSegment>())
                 .Select(SegmentValueSelectorOrThrow)
-                .Select(SanitizeValue))
-            .DefaultIfEmpty(0)
-            .Max();
+                .Select(SanitizeValue));
+        var (pixelStart, pixelEnd) = Horizontal
+            ? (ChartAreaLeft, ChartAreaRight)
+            : (ChartAreaBottom, ChartAreaTop);
 
-        return GetNiceMax(max);
+        return AxisScale.FromValues(values, pixelStart, pixelEnd, new AxisScaleOptions
+        {
+            TickCount = SafeGridLineCount,
+            Baseline = AxisBaseline.IncludeZero,
+            ForcedMax = MaxValue is > 0 && double.IsFinite(MaxValue.Value) ? MaxValue : null,
+            EmptyFallbackMax = 100
+        });
     }
 
     private sealed record SegmentLayout(
