@@ -25,10 +25,11 @@ public sealed class ChartTooltipTests : TestContext
     }
 
     [Fact]
-    public void ContainedModeRequestsMeasuredPlacementAndAppliesResolvedCoordinates()
+    public void ContainedModeAppliesResolvedGeometryFromMeasurer()
     {
-        var runtime = CreateTooltipRuntime("""{"left":24,"top":32,"placement":"below"}""");
-        Services.AddSingleton<IJSRuntime>(runtime);
+        // above at (140,120) inside a 420x240 host, 100x40 tooltip -> fits: (90,72,above).
+        var measurer = new FakeTooltipMeasurer(new TooltipMeasurement(420, 240, 100, 40));
+        Services.AddSingleton<ITooltipMeasurer>(measurer);
 
         var cut = RenderComponent<TooltipHarness>(parameters => parameters
             .Add(component => component.ConstrainToBounds, true)
@@ -39,23 +40,42 @@ public sealed class ChartTooltipTests : TestContext
         {
             var tooltip = cut.Find(".chart-tooltip");
             Assert.Contains("chart-tooltip--contained", tooltip.GetAttribute("class"));
-            Assert.Contains("chart-tooltip--placement-below", tooltip.GetAttribute("class"));
-            Assert.Equal("left: 24.0px; top: 32.0px;", tooltip.GetAttribute("style"));
+            Assert.Contains("chart-tooltip--placement-above", tooltip.GetAttribute("class"));
+            Assert.Equal("left: 90.0px; top: 72.0px;", tooltip.GetAttribute("style"));
             Assert.Equal("measured-tooltip", tooltip.TextContent.Trim());
         });
 
-        Assert.Equal(1, runtime.ImportCount);
-        Assert.Equal("./_content/FireCharts/chartTooltip.js", runtime.Invocations.Single().Arguments[0]);
-        Assert.Single(runtime.Module.Invocations, invocation => invocation.Identifier == "resolveTooltipPosition");
+        Assert.Equal(1, measurer.MeasureCount);
+    }
+
+    [Fact]
+    public void ContainedModeFlipsPlacementReportedByEngine()
+    {
+        // above at (140,20) would overflow the top edge; the engine flips to below: (90,28,below).
+        var measurer = new FakeTooltipMeasurer(new TooltipMeasurement(420, 240, 100, 40));
+        Services.AddSingleton<ITooltipMeasurer>(measurer);
+
+        var cut = RenderComponent<TooltipHarness>(parameters => parameters
+            .Add(component => component.ConstrainToBounds, true)
+            .Add(component => component.AnchorX, 140d)
+            .Add(component => component.AnchorY, 20d)
+            .Add(component => component.MeasurementKey, "initial"));
+
+        cut.WaitForAssertion(() =>
+        {
+            var tooltip = cut.Find(".chart-tooltip");
+            Assert.Contains("chart-tooltip--placement-below", tooltip.GetAttribute("class"));
+            Assert.Equal("left: 90.0px; top: 28.0px;", tooltip.GetAttribute("style"));
+        });
     }
 
     [Fact]
     public void ContainedModeRemeasuresWhenAnchorOrMeasurementKeyChanges()
     {
-        var runtime = CreateTooltipRuntime(
-            """{"left":24,"top":32,"placement":"above"}""",
-            """{"left":48,"top":60,"placement":"right"}""");
-        Services.AddSingleton<IJSRuntime>(runtime);
+        var measurer = new FakeTooltipMeasurer(
+            new TooltipMeasurement(420, 240, 100, 40),
+            new TooltipMeasurement(420, 240, 100, 40));
+        Services.AddSingleton<ITooltipMeasurer>(measurer);
 
         var cut = RenderComponent<TooltipHarness>(parameters => parameters
             .Add(component => component.ConstrainToBounds, true)
@@ -63,8 +83,9 @@ public sealed class ChartTooltipTests : TestContext
             .Add(component => component.AnchorY, 90d)
             .Add(component => component.MeasurementKey, "initial"));
 
+        // above at (120,90): left = 70, top = 42.
         cut.WaitForAssertion(() =>
-            Assert.Equal("left: 24.0px; top: 32.0px;", cut.Find(".chart-tooltip").GetAttribute("style")));
+            Assert.Equal("left: 70.0px; top: 42.0px;", cut.Find(".chart-tooltip").GetAttribute("style")));
 
         cut.SetParametersAndRender(parameters => parameters
             .Add(component => component.AnchorX, 180d)
@@ -72,23 +93,54 @@ public sealed class ChartTooltipTests : TestContext
             .Add(component => component.MeasurementKey, "updated")
             .Add(component => component.ContentText, "updated-tooltip"));
 
+        // above at (180,110): left = 130, top = 62.
         cut.WaitForAssertion(() =>
         {
             var tooltip = cut.Find(".chart-tooltip");
-            Assert.Contains("chart-tooltip--placement-right", tooltip.GetAttribute("class"));
-            Assert.Equal("left: 48.0px; top: 60.0px;", tooltip.GetAttribute("style"));
+            Assert.Contains("chart-tooltip--placement-above", tooltip.GetAttribute("class"));
+            Assert.Equal("left: 130.0px; top: 62.0px;", tooltip.GetAttribute("style"));
             Assert.Equal("updated-tooltip", tooltip.TextContent.Trim());
         });
 
-        Assert.Equal(2, runtime.Module.Invocations.Count(invocation => invocation.Identifier == "resolveTooltipPosition"));
+        Assert.Equal(2, measurer.MeasureCount);
     }
 
-    private static RecordingJsRuntime CreateTooltipRuntime(params string[] responses)
+    [Fact]
+    public void ContainedModeStaysHiddenWhenMeasurementIsNull()
     {
-        var queue = new Queue<string>(responses);
+        // No scripted measurements -> the measurer reports "not laid out yet" (null).
+        var measurer = new FakeTooltipMeasurer();
+        Services.AddSingleton<ITooltipMeasurer>(measurer);
+
+        var cut = RenderComponent<TooltipHarness>(parameters => parameters
+            .Add(component => component.ConstrainToBounds, true)
+            .Add(component => component.MeasurementKey, "initial")
+            .Add(component => component.ContentText, "hidden-tooltip"));
+
+        cut.WaitForAssertion(() => Assert.Equal(1, measurer.MeasureCount));
+
+        var tooltip = cut.Find(".chart-tooltip");
+        Assert.Contains("visibility: hidden;", tooltip.GetAttribute("style"));
+        Assert.Contains("chart-tooltip--placement-above", tooltip.GetAttribute("class"));
+    }
+
+    [Fact]
+    public async Task JsTooltipMeasurerImportsModuleAndReturnsMeasurement()
+    {
         var module = new RecordingJsObjectReference();
-        module.SetupHandler("resolveTooltipPosition", _ => queue.Dequeue());
-        return new RecordingJsRuntime(module);
+        module.SetupHandler("measure", _ => new TooltipMeasurement(420, 240, 100, 40));
+        var runtime = new RecordingJsRuntime(module);
+
+        var measurer = new JsTooltipMeasurer(runtime);
+        var measurement = await measurer.MeasureAsync(default, default);
+
+        Assert.Equal(new TooltipMeasurement(420, 240, 100, 40), measurement);
+        Assert.Equal(1, runtime.ImportCount);
+        Assert.Equal("./_content/FireCharts/chartTooltip.js", runtime.Invocations.Single().Arguments[0]);
+        Assert.Single(module.Invocations, invocation => invocation.Identifier == "measure");
+
+        await measurer.DisposeAsync();
+        Assert.True(module.DisposeCalled);
     }
 
     public sealed class TooltipHarness : ComponentBase
