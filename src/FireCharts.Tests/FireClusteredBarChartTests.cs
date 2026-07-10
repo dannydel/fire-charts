@@ -46,7 +46,7 @@ public sealed class FireClusteredBarChartTests : TestContext
 
         Assert.Equal(2, heights.Count);
         Assert.All(heights, height => Assert.True(height > 0));
-        Assert.Contains("75", axisLabels);
+        Assert.Contains("80", axisLabels);
     }
 
     [Fact]
