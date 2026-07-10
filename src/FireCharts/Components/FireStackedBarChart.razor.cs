@@ -1,34 +1,19 @@
 using FireCharts.Interaction;
+using FireCharts.Layout;
 using FireCharts.Models;
-using FireCharts.Scales;
 using Microsoft.AspNetCore.Components;
-using System.Collections.ObjectModel;
-using System.Globalization;
 
 namespace FireCharts.Components;
 
+/// <summary>
+/// Item-first stacked bar chart. A thin public adapter over the internal
+/// <see cref="CategoricalBarChartCore{TItem, TSegment}"/>: it owns the published API surface and
+/// whole-item selection semantics, and projects the core's internal segment onto the public
+/// <see cref="StackedBarChartSegment{TItem, TSegment}"/> record family for consumer templates.
+/// </summary>
 public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 {
-    private static readonly string[] DefaultPalette =
-    [
-        "#d94f3d",
-        "#e79b21",
-        "#198f8c",
-        "#8a7cf6",
-        "#f05f3b",
-        "#4d89ff"
-    ];
-
-    private IReadOnlyList<StackedBarChartSegment<TItem, TSegment>> _segments = Array.Empty<StackedBarChartSegment<TItem, TSegment>>();
-    private IReadOnlyList<BarState> _bars = Array.Empty<BarState>();
-    private IReadOnlyList<LegendItem> _legendItems = Array.Empty<LegendItem>();
-    private Dictionary<string, int> _segmentIndexByKey = [];
-    private IReadOnlyList<ScaleTick> _valueAxisTicks = Array.Empty<ScaleTick>();
-    private double _computedMaxValue = 100;
-    private int? _hoveredBarIndex;
-    private PlotArea _plot;
-    private ChartInteraction<StackedBarChartSegment<TItem, TSegment>, int> _interaction = default!;
-    private string? _hoveredLegendLabel;
+    private static readonly IBarLayoutStrategy LayoutStrategy = new StackedBarLayout();
 
     [Parameter] public string Title { get; set; } = "Stacked Bar Chart";
     [Parameter] public string Description { get; set; } = "";
@@ -64,547 +49,76 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
     [Parameter] public ChartLegendPlacement LegendPlacement { get; set; } = ChartLegendPlacement.Bottom;
     [Parameter] public BarTooltipInteractionMode TooltipInteractionMode { get; set; } = BarTooltipInteractionMode.Shared;
 
-    private ChartPadding Padding => new(
-        Top: 10,
-        Right: 10,
-        Bottom: ShowAxisLabels ? 40 : 10,
-        Left: ShowAxisLabels ? (Horizontal ? 90 : 50) : 10);
+    private RenderFragment<CategoricalBarSegment<TItem, TSegment>>? CoreTooltipTemplate =>
+        TooltipTemplate is null ? null : segment => TooltipTemplate(ProjectSegment(segment));
 
-    internal IReadOnlyList<StackedBarChartSegment<TItem, TSegment>> Segments => _segments;
-    internal IReadOnlyList<BarState> Bars => _bars;
-    internal IReadOnlyList<LegendItem> LegendItems => _legendItems;
-    internal StackedBarChartSegment<TItem, TSegment>? HoveredSegment => _interaction.Hovered;
-    internal bool UsesSharedTooltip => TooltipInteractionMode == BarTooltipInteractionMode.Shared;
-    internal int SafeGridLineCount => Math.Max(GridLineCount, 1);
-    internal bool HasLegendHover => !string.IsNullOrWhiteSpace(_hoveredLegendLabel);
-    internal bool ShouldRenderLegendBeforeChart => LegendPlacement is ChartLegendPlacement.Top or ChartLegendPlacement.Left or ChartLegendPlacement.Start;
-    internal string ShellCssClasses => string.Join(" ", GetShellClasses());
-    internal int? TooltipBarIndex => UsesSharedTooltip
-        ? _hoveredBarIndex ?? HoveredSegment?.BarIndex ?? FocusedSegment?.BarIndex
-        : HoveredSegment?.BarIndex;
-    internal BarState? TooltipBar => TooltipBarIndex is int index
-        ? index >= 0 && index < _bars.Count ? _bars[index] : null
-        : null;
-    internal StackedBarChartSegment<TItem, TSegment>? FocusedSegment => _interaction.Focused;
-    internal StackedBarChartSegment<TItem, TSegment>? TooltipActiveSegment
-    {
-        get
-        {
-            var ownerIndex = TooltipBarIndex;
-            if (ownerIndex is null)
-            {
-                return UsesSharedTooltip ? null : HoveredSegment;
-            }
+    private RenderFragment<CategoricalBarTooltipContext<TItem, TSegment>>? CoreSharedTooltipTemplate =>
+        SharedTooltipTemplate is null ? null : context => SharedTooltipTemplate(ProjectTooltip(context));
 
-            if (HoveredSegment?.BarIndex == ownerIndex)
-            {
-                return HoveredSegment;
-            }
+    private RenderFragment<CategoricalBarChartContext<TItem, TSegment>>? CoreChartContentTemplate =>
+        ChartContentTemplate is null ? null : context => ChartContentTemplate(ProjectChartContext(context));
 
-            return FocusedSegment?.BarIndex == ownerIndex ? FocusedSegment : null;
-        }
-    }
-    internal StackedBarTooltipContext<TItem, TSegment>? SharedTooltipContext =>
-        !UsesSharedTooltip || TooltipBar is null
-            ? null
-            : CreateSharedTooltipContext(TooltipBar);
-    internal StackedBarChartContext<TItem, TSegment> ChartContext =>
-        new(
-            _plot,
-            Horizontal,
-            ComputedMaxValue,
-            Segments);
-
-    internal double ComputedMaxValue => _computedMaxValue;
-    internal IReadOnlyList<ScaleTick> ValueAxisTicks => _valueAxisTicks;
-
-    protected override void OnInitialized()
-    {
-        _interaction = new ChartInteraction<StackedBarChartSegment<TItem, TSegment>, int>(
-            new ChartInteractionOptions<StackedBarChartSegment<TItem, TSegment>, int>
-            {
-                KeySelector = FindSegmentIndex,
-                RequestRender = () => InvokeAsync(StateHasChanged),
-                OnActiveChanged = segment => OnPointHoverChanged.InvokeAsync(ToInteraction(segment)),
-                OnActivate = async segment =>
-                {
-                    SelectedItem = segment.Item;
-                    await InvokeAsync(StateHasChanged);
-                    await SelectedItemChanged.InvokeAsync(segment.Item);
-                    await OnPointClick.InvokeAsync(ToInteraction(segment));
-                }
-            });
-    }
-
-    protected override void OnParametersSet()
-    {
-        ArgumentNullException.ThrowIfNull(SegmentsSelector);
-        ArgumentNullException.ThrowIfNull(LabelSelector);
-        ArgumentNullException.ThrowIfNull(SegmentValueSelector);
-        ArgumentNullException.ThrowIfNull(SegmentLabelSelector);
-
-        Width = Math.Max(Width, 1);
-        Height = Math.Max(Height, 1);
-        _plot = PlotArea.FromInset(Width, Height, Padding);
-        RebuildChartState();
-    }
-
-    private void RebuildChartState()
-    {
-        var items = Items ?? Array.Empty<TItem>();
-        var comparer = EqualityComparer<TItem>.Default;
-        var selectedItem = SelectedItem;
-        var scale = BuildValueScale(items);
-        var maxValue = scale.Max;
-        var safeBarWidthRatio = Math.Clamp(BarWidthRatio, 0.1, 1.0);
-        var bars = new List<BarState>(items.Count);
-        var segments = new List<StackedBarChartSegment<TItem, TSegment>>();
-        var segmentIndexByKey = new Dictionary<string, int>(StringComparer.Ordinal);
-        var legendMap = new Dictionary<string, LegendItem>(StringComparer.Ordinal);
-
-        _computedMaxValue = maxValue;
-        _valueAxisTicks = scale.Ticks;
-
-        for (var barIndex = 0; barIndex < items.Count; barIndex++)
-        {
-            var item = items[barIndex];
-            var label = LabelSelectorOrThrow(item);
-            var isSelected = comparer.Equals(item, selectedItem);
-            var itemSegments = SegmentsSelectorOrThrow(item) ?? Array.Empty<TSegment>();
-            var sanitizedValues = new double[itemSegments.Count];
-            var totalValue = 0d;
-
-            for (var segmentIndex = 0; segmentIndex < itemSegments.Count; segmentIndex++)
-            {
-                var value = ChartValues.Sanitize(SegmentValueSelectorOrThrow(itemSegments[segmentIndex]));
-                sanitizedValues[segmentIndex] = value;
-                totalValue += value;
-            }
-
-            var barRect = GetBarBounds(barIndex, items.Count, safeBarWidthRatio);
-            var hoverRect = GetBarHoverBounds(barIndex, items.Count);
-            var barSegments = new List<StackedBarChartSegment<TItem, TSegment>>();
-
-            var runningOffset = 0d;
-            for (var segmentIndex = 0; segmentIndex < itemSegments.Count; segmentIndex++)
-            {
-                var segment = itemSegments[segmentIndex];
-                var value = sanitizedValues[segmentIndex];
-                var segmentLabel = SegmentLabelSelectorOrThrow(segment);
-                var fill = legendMap.TryGetValue(segmentLabel, out var existingLegendItem)
-                    ? existingLegendItem.Fill
-                    : SegmentColorSelector?.Invoke(segment) ?? DefaultPalette[legendMap.Count % DefaultPalette.Length];
-                var hoverFill = SegmentHoverColorSelector?.Invoke(segment) ?? ChartColor.DarkenByFactor(fill);
-
-                if (!legendMap.ContainsKey(segmentLabel))
-                {
-                    legendMap[segmentLabel] = new LegendItem(segmentLabel, fill);
-                }
-
-                if (value <= 0 || maxValue <= 0)
-                {
-                    continue;
-                }
-
-                var rect = GetSegmentRect(barRect, runningOffset, value, maxValue);
-                var chartSegment = new StackedBarChartSegment<TItem, TSegment>(
-                    item,
-                    segment,
-                    barIndex,
-                    segmentIndex,
-                    label,
-                    segmentLabel,
-                    value,
-                    totalValue,
-                    fill,
-                    hoverFill,
-                    rect,
-                    $"{label}, {segmentLabel}: {value.ToString(ValueFormat, CultureInfo.InvariantCulture)}",
-                    isSelected,
-                    false,
-                    false);
-
-                segments.Add(chartSegment);
-                segmentIndexByKey[chartSegment.Key] = segments.Count - 1;
-                barSegments.Add(chartSegment);
-                runningOffset += value;
-            }
-
-            bars.Add(new BarState(
-                barIndex,
-                item,
-                label,
-                totalValue,
-                barRect,
-                hoverRect,
-                Horizontal
-                    ? new SvgPoint(_plot.Left - 8, barRect.Y + barRect.Height / 2)
-                    : new SvgPoint(barRect.X + barRect.Width / 2, _plot.Bottom + 20),
-                new ReadOnlyCollection<StackedBarChartSegment<TItem, TSegment>>(barSegments)));
-        }
-
-        _bars = new ReadOnlyCollection<BarState>(bars);
-        _segments = new ReadOnlyCollection<StackedBarChartSegment<TItem, TSegment>>(segments);
-        _segmentIndexByKey = segmentIndexByKey;
-        _legendItems = new ReadOnlyCollection<LegendItem>(legendMap.Values.ToList());
-        _interaction.SetElements(_segments);
-
-        if (_hoveredBarIndex is int hoveredBar && !_bars.Any(bar => bar.Index == hoveredBar && bar.Segments.Count > 0))
-        {
-            _hoveredBarIndex = null;
-        }
-
-        if (_hoveredLegendLabel is not null && !_legendItems.Any(item => item.Label == _hoveredLegendLabel))
-        {
-            _hoveredLegendLabel = null;
-        }
-    }
-
-    private SvgRect GetBarHoverBounds(int barIndex, int itemCount)
-    {
-        if (itemCount <= 0)
-        {
-            return new SvgRect(0, 0, 0, 0);
-        }
-
-        if (Horizontal)
-        {
-            var step = _plot.Height / itemCount;
-            return new SvgRect(_plot.Left, _plot.Top + barIndex * step, _plot.Width, step);
-        }
-
-        var widthStep = _plot.Width / itemCount;
-        return new SvgRect(_plot.Left + barIndex * widthStep, _plot.Top, widthStep, _plot.Height);
-    }
-
-    private SvgRect GetBarBounds(int barIndex, int itemCount, double safeBarWidthRatio)
-    {
-        if (itemCount <= 0)
-        {
-            return new SvgRect(0, 0, 0, 0);
-        }
-
-        if (Horizontal)
-        {
-            var step = _plot.Height / itemCount;
-            var barHeight = Math.Max(step * safeBarWidthRatio, 1);
-            var y = _plot.Top + barIndex * step + (step - barHeight) / 2;
-            return new SvgRect(_plot.Left, y, _plot.Width, barHeight);
-        }
-
-        var widthStep = _plot.Width / itemCount;
-        var barWidth = Math.Max(widthStep * safeBarWidthRatio, 1);
-        var x = _plot.Left + barIndex * widthStep + (widthStep - barWidth) / 2;
-        return new SvgRect(x, _plot.Top, barWidth, _plot.Height);
-    }
-
-    private SvgRect GetSegmentRect(SvgRect barRect, double runningOffset, double value, double maxValue)
-    {
-        var scale = maxValue > 0 ? value / maxValue : 0;
-        var offsetScale = maxValue > 0 ? runningOffset / maxValue : 0;
-        scale = Math.Clamp(scale, 0, 1);
-        offsetScale = Math.Clamp(offsetScale, 0, 1);
-
-        if (Horizontal)
-        {
-            var width = Math.Max(scale * _plot.Width, 0);
-            var x = _plot.Left + offsetScale * _plot.Width;
-            return new SvgRect(x, barRect.Y, width, barRect.Height);
-        }
-
-        var height = Math.Max(scale * _plot.Height, 0);
-        var topOffset = offsetScale * _plot.Height;
-        var y = _plot.Bottom - topOffset - height;
-        return new SvgRect(barRect.X, y, barRect.Width, height);
-    }
-
-    private Task OnPlotAreaChanged(PlotArea plot)
-    {
-        _plot = plot;
-        RebuildChartState();
-        return Task.CompletedTask;
-    }
-
-    /// <summary>
-    /// Individual segment mouse-out is suppressed while the shared tooltip is active: the bar-level
-    /// rollup (<see cref="HandleBarLeaveAsync"/>) owns clearing hover in that mode.
-    /// </summary>
-    private Task HandleSegmentHoverLeaveAsync(StackedBarChartSegment<TItem, TSegment> segment) =>
-        UsesSharedTooltip ? Task.CompletedTask : _interaction.HoverLeaveAsync(segment);
-
-    private async Task HandleBarEnterAsync(BarState bar)
-    {
-        if (!UsesSharedTooltip || bar.Segments.Count == 0 || _hoveredBarIndex == bar.Index)
-        {
-            return;
-        }
-
-        _hoveredBarIndex = bar.Index;
-
-        if (HoveredSegment is not null && HoveredSegment.BarIndex != bar.Index)
-        {
-            await _interaction.HoverLeaveKeyAsync(_interaction.HoveredKey!.Value);
-        }
-
-        await RefreshChartAsync();
-    }
-
-    private async Task HandleBarLeaveAsync(BarState bar)
-    {
-        if (!UsesSharedTooltip || _hoveredBarIndex != bar.Index)
-        {
-            return;
-        }
-
-        _hoveredBarIndex = null;
-
-        if (HoveredSegment?.BarIndex == bar.Index)
-        {
-            await _interaction.HoverLeaveKeyAsync(_interaction.HoveredKey!.Value);
-        }
-
-        await RefreshChartAsync();
-    }
-
-    private async Task HandleLegendEnter(string label)
-    {
-        if (string.Equals(_hoveredLegendLabel, label, StringComparison.Ordinal))
-        {
-            return;
-        }
-
-        _hoveredLegendLabel = label;
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private Task HandleLegendLeave()
-    {
-        if (_hoveredLegendLabel is null)
-        {
-            return Task.CompletedTask;
-        }
-
-        _hoveredLegendLabel = null;
-        return InvokeAsync(StateHasChanged);
-    }
-
-    private async Task RefreshChartAsync()
-        => await InvokeAsync(StateHasChanged);
-
-    private SvgPoint GetTooltipAnchor(StackedBarChartSegment<TItem, TSegment> segment)
-    {
-        if (Horizontal)
-        {
-            return new SvgPoint(
-                segment.Rect.X + segment.Rect.Width / 2,
-                segment.Rect.Y + segment.Rect.Height / 2);
-        }
-
-        if (ConstrainTooltipToChartBounds)
-        {
-            var cornerY = segment.Rect.Y + Math.Min(segment.Rect.Height * 0.35, 14);
-            return new SvgPoint(segment.Rect.X + segment.Rect.Width, Math.Max(cornerY, 8));
-        }
-
-        var left = segment.Rect.X + segment.Rect.Width / 2;
-        var top = Math.Max(segment.Rect.Y - 12, 8);
-
-        return new(left, top);
-    }
-
-    private string GetTooltipStyle(StackedBarChartSegment<TItem, TSegment> segment)
-    {
-        var anchor = GetTooltipAnchor(segment);
-        return $"left: {Fmt(anchor.X)}px; top: {Fmt(anchor.Y)}px;";
-    }
-
-    private string GetTooltipStyle(StackedBarTooltipContext<TItem, TSegment> tooltip) =>
-        $"left: {Fmt(tooltip.Anchor.X)}px; top: {Fmt(tooltip.Anchor.Y)}px;";
-
-    private string GetSegmentClasses(StackedBarChartSegment<TItem, TSegment> segment)
-    {
-        var classes = new List<string> { "stacked-segment" };
-        if (IsHovered(segment)) classes.Add("is-hovered");
-        if (IsFocused(segment)) classes.Add("is-focused");
-        if (IsSelected(segment)) classes.Add("is-selected");
-        if (IsLegendMatch(segment.SegmentLabel)) classes.Add("is-legend-active");
-        return string.Join(" ", classes);
-    }
-
-    private StackedBarTooltipContext<TItem, TSegment> CreateSharedTooltipContext(BarState bar)
-    {
-        var activeSegment = TooltipActiveSegment;
-        var rows = bar.Segments
-            .Select(segment => new StackedBarTooltipRow<TItem, TSegment>(
-                segment.Item,
-                segment.Segment,
-                segment.BarIndex,
-                segment.SegmentIndex,
-                segment.BarLabel,
-                segment.SegmentLabel,
-                segment.Value,
-                segment.TotalValue,
-                segment.Fill,
-                string.Equals(segment.Key, activeSegment?.Key, StringComparison.Ordinal)))
-            .ToList();
-
-        return new StackedBarTooltipContext<TItem, TSegment>(
-            bar.Item,
-            bar.Index,
-            bar.Label,
-            bar.TotalValue,
-            rows,
-            activeSegment,
-            GetSharedTooltipAnchor(bar),
-            Horizontal);
-    }
-
-    private SvgPoint GetSharedTooltipAnchor(BarState bar)
-    {
-        if (bar.Segments.Count == 0)
-        {
-            return new SvgPoint(bar.HoverRect.X + bar.HoverRect.Width / 2, bar.HoverRect.Y);
-        }
-
-        if (Horizontal)
-        {
-            var right = bar.Segments.Max(segment => segment.Rect.X + segment.Rect.Width);
-            var centerY = bar.HoverRect.Y + bar.HoverRect.Height / 2;
-            return new SvgPoint(Math.Min(right + 12, _plot.Right - 8), centerY);
-        }
-
-        if (ConstrainTooltipToChartBounds)
-        {
-            var activeSegment = TooltipActiveSegment;
-            if (activeSegment is not null)
-            {
-                return GetTooltipAnchor(activeSegment);
-            }
-
-            var right = bar.HoverRect.X + bar.HoverRect.Width;
-            var cornerTop = bar.Segments.Min(segment => segment.Rect.Y);
-            return new SvgPoint(
-                Math.Min(right, _plot.Right - 8),
-                Math.Max(cornerTop + 12, 8));
-        }
-
-        var left = bar.HoverRect.X + bar.HoverRect.Width / 2;
-        var top = bar.Segments.Min(segment => segment.Rect.Y);
-        return new SvgPoint(left, Math.Max(top - 12, 8));
-    }
-
-    private ChartTooltipPlacement GetSegmentTooltipPlacement() =>
-        Horizontal || ConstrainTooltipToChartBounds
-            ? ChartTooltipPlacement.Right
-            : ChartTooltipPlacement.Above;
-
-    private string GetSegmentTooltipLegacyPlacementClass() =>
-        Horizontal
-            ? "chart-tooltip--side"
-            : ConstrainTooltipToChartBounds
-                ? "chart-tooltip--corner"
-                : "chart-tooltip--top";
-
-    private ChartTooltipPlacement GetSharedTooltipPlacement(bool horizontalAnchor) =>
-        horizontalAnchor || ConstrainTooltipToChartBounds
-            ? ChartTooltipPlacement.Right
-            : ChartTooltipPlacement.Above;
-
-    private string GetSharedTooltipLegacyPlacementClass(bool horizontalAnchor) =>
-        horizontalAnchor
-            ? "chart-tooltip--side"
-            : ConstrainTooltipToChartBounds
-                ? "chart-tooltip--corner"
-                : "chart-tooltip--top";
-
-    private string GetLegendItemClasses(LegendItem item)
-    {
-        var classes = new List<string> { "stacked-bar-legend__item" };
-        if (IsLegendMatch(item.Label)) classes.Add("is-active");
-        return string.Join(" ", classes);
-    }
-
-    private bool IsLegendMatch(string label) =>
-        !string.IsNullOrWhiteSpace(_hoveredLegendLabel) &&
-        string.Equals(_hoveredLegendLabel, label, StringComparison.Ordinal);
-
-    private int FindSegmentIndex(StackedBarChartSegment<TItem, TSegment> segment)
-        => _segmentIndexByKey.GetValueOrDefault(segment.Key, -1);
-
-    private IEnumerable<string> GetShellClasses()
-    {
-        yield return "fire-stacked-bar-chart-shell";
-        yield return LegendPlacement switch
-        {
-            ChartLegendPlacement.Top => "legend-top",
-            ChartLegendPlacement.Bottom => "legend-bottom",
-            ChartLegendPlacement.Left => "legend-left",
-            ChartLegendPlacement.Right => "legend-right",
-            ChartLegendPlacement.Start => "legend-start",
-            ChartLegendPlacement.End => "legend-end",
-            _ => "legend-bottom"
-        };
-
-        if (HasLegendHover)
-        {
-            yield return "has-legend-hover";
-        }
-    }
-
-    private ChartPointInteraction<TItem> ToInteraction(StackedBarChartSegment<TItem, TSegment> segment) =>
-        new(segment.Item, segment.BarIndex, $"{segment.BarLabel} - {segment.SegmentLabel}", segment.Value);
-
-    private bool IsSelected(StackedBarChartSegment<TItem, TSegment> segment) =>
+    private bool IsSegmentSelectedCore(CategoricalBarSegment<TItem, TSegment> segment) =>
         EqualityComparer<TItem>.Default.Equals(segment.Item, SelectedItem);
 
-    private bool IsHovered(StackedBarChartSegment<TItem, TSegment> segment) =>
-        UsesSharedTooltip
-            ? TooltipBarIndex == segment.BarIndex
-            : _interaction.IsHovered(segment);
-
-    private bool IsFocused(StackedBarChartSegment<TItem, TSegment> segment) =>
-        _interaction.IsFocused(segment);
-
-    private IReadOnlyList<TSegment> SegmentsSelectorOrThrow(TItem item) => SegmentsSelector!(item);
-
-    private string LabelSelectorOrThrow(TItem item) => LabelSelector!(item);
-
-    private double SegmentValueSelectorOrThrow(TSegment segment) => SegmentValueSelector!(segment);
-
-    private string SegmentLabelSelectorOrThrow(TSegment segment) => SegmentLabelSelector!(segment);
-
-    private static string Fmt(double value) => ChartFormat.Fmt(value);
-
-    private AxisScale BuildValueScale(IReadOnlyList<TItem> items)
+    private async Task HandleSegmentActivatedAsync(CategoricalBarSegment<TItem, TSegment> segment)
     {
-        var totals = items.Select(item => (SegmentsSelectorOrThrow(item) ?? Array.Empty<TSegment>())
-            .Select(SegmentValueSelectorOrThrow)
-            .Select(ChartValues.Sanitize)
-            .Sum());
-        var (pixelStart, pixelEnd) = Horizontal
-            ? (_plot.Left, _plot.Right)
-            : (_plot.Bottom, _plot.Top);
-
-        return AxisScale.FromValues(totals, pixelStart, pixelEnd, new AxisScaleOptions
-        {
-            TickCount = SafeGridLineCount,
-            Baseline = AxisBaseline.IncludeZero,
-            ForcedMax = MaxValue is > 0 && double.IsFinite(MaxValue.Value) ? MaxValue : null,
-            EmptyFallbackMax = 100
-        });
+        SelectedItem = segment.Item;
+        await SelectedItemChanged.InvokeAsync(segment.Item);
+        await OnPointClick.InvokeAsync(ToInteraction(segment));
     }
 
-    internal sealed record BarState(
-        int Index,
-        TItem Item,
-        string Label,
-        double TotalValue,
-        SvgRect Rect,
-        SvgRect HoverRect,
-        SvgPoint AxisLabelPoint,
-        IReadOnlyList<StackedBarChartSegment<TItem, TSegment>> Segments);
+    private Task HandleSegmentHoveredAsync(CategoricalBarSegment<TItem, TSegment> segment) =>
+        OnPointHoverChanged.InvokeAsync(ToInteraction(segment));
 
-    internal sealed record LegendItem(
-        string Label,
-        string Fill);
+    private static ChartPointInteraction<TItem> ToInteraction(CategoricalBarSegment<TItem, TSegment> segment) =>
+        new(segment.Item, segment.GroupIndex, $"{segment.GroupLabel} - {segment.SegmentLabel}", segment.Value);
+
+    private static StackedBarChartSegment<TItem, TSegment> ProjectSegment(CategoricalBarSegment<TItem, TSegment> segment) =>
+        new(
+            segment.Item,
+            segment.Segment,
+            segment.GroupIndex,
+            segment.SegmentIndex,
+            segment.GroupLabel,
+            segment.SegmentLabel,
+            segment.Value,
+            segment.TotalValue,
+            segment.Fill,
+            segment.HoverFill,
+            segment.Rect,
+            segment.AccessibleLabel,
+            segment.IsSelected,
+            segment.IsHovered,
+            segment.IsFocused);
+
+    private static StackedBarTooltipContext<TItem, TSegment> ProjectTooltip(CategoricalBarTooltipContext<TItem, TSegment> context) =>
+        new(
+            context.Item,
+            context.GroupIndex,
+            context.GroupLabel,
+            context.TotalValue,
+            context.Rows
+                .Select(row => new StackedBarTooltipRow<TItem, TSegment>(
+                    row.Item,
+                    row.Segment,
+                    row.GroupIndex,
+                    row.SegmentIndex,
+                    row.GroupLabel,
+                    row.SegmentLabel,
+                    row.Value,
+                    row.TotalValue,
+                    row.Fill,
+                    row.IsActive))
+                .ToList(),
+            context.ActiveSegment is null ? null : ProjectSegment(context.ActiveSegment),
+            context.Anchor,
+            context.Horizontal);
+
+    private static StackedBarChartContext<TItem, TSegment> ProjectChartContext(CategoricalBarChartContext<TItem, TSegment> context) =>
+        new(
+            context.Plot,
+            context.Horizontal,
+            context.MaxValue,
+            context.Segments.Select(ProjectSegment).ToList());
 }
