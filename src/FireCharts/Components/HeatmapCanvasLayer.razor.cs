@@ -24,7 +24,7 @@ public partial class HeatmapCanvasLayer : ComponentBase, IAsyncDisposable
     [Parameter] public EventCallback<(int RowIndex, int ColumnIndex)> OnClick { get; set; }
 
     private string CanvasStyle =>
-        $"left: {Fmt(Left)}px; top: {Fmt(Top)}px; width: {Fmt(Width)}px; height: {Fmt(Height)}px;";
+        $"left: {ChartFormat.Fmt(Left)}px; top: {ChartFormat.Fmt(Top)}px; width: {ChartFormat.Fmt(Width)}px; height: {ChartFormat.Fmt(Height)}px;";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -91,9 +91,4 @@ public partial class HeatmapCanvasLayer : ComponentBase, IAsyncDisposable
 
         _dotNetRef?.Dispose();
     }
-
-    private static string Fmt(double value) =>
-        double.IsFinite(value)
-            ? value.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
-            : "0.0";
 }

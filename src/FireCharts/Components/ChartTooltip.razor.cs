@@ -182,12 +182,7 @@ public sealed partial class ChartTooltip : ComponentBase, IAsyncDisposable
     }
 
     private static string FormatPositionStyle(double left, double top) =>
-        $"left: {Format(left)}px; top: {Format(top)}px;";
-
-    private static string Format(double value) =>
-        double.IsFinite(value)
-            ? value.ToString("F1", CultureInfo.InvariantCulture)
-            : "0.0";
+        $"left: {ChartFormat.Fmt(left)}px; top: {ChartFormat.Fmt(top)}px;";
 
     private static string GetPlacementClass(ChartTooltipPlacement placement) =>
         placement switch

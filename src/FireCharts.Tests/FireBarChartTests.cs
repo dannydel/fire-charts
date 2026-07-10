@@ -41,7 +41,7 @@ public sealed class FireBarChartTests : TestContext
         Assert.True(heights[0] > 0);
         Assert.Equal(0, heights[1]);
         Assert.Equal(0, heights[2]);
-        Assert.Contains("75", axisLabels);
+        Assert.Contains("80", axisLabels);
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using FireCharts.Models;
+using FireCharts.Scales;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -118,8 +119,16 @@ public partial class FireWaterfallChart<TItem> : ComponentBase
         var allValues = segments
             .SelectMany(point => new[] { point.StartValue, point.EndValue, 0d })
             .ToList();
-        (_scaleMin, _scaleMax, var step) = GetNiceScale(allValues.Min(), allValues.Max(), SafeGridLineCount);
-        _yAxisTicks = BuildTicks(_scaleMin, _scaleMax, step);
+        var yScale = AxisScale.FromValues(
+            allValues,
+            ChartAreaBottom,
+            ChartAreaTop,
+            new AxisScaleOptions { TickCount = SafeGridLineCount, Baseline = AxisBaseline.IncludeZero });
+        _scaleMin = yScale.Min;
+        _scaleMax = yScale.Max;
+        _yAxisTicks = yScale.Ticks
+            .Select(tick => new AxisTick(tick.Value, tick.Pixel))
+            .ToList();
 
         var renderedPoints = new List<WaterfallChartPoint<TItem>>(segments.Count);
         var connectors = new List<Connector>(Math.Max(segments.Count - 1, 0));
@@ -414,95 +423,7 @@ public partial class FireWaterfallChart<TItem> : ComponentBase
         return ChartAreaBottom - (normalized * ChartAreaHeight);
     }
 
-    private IReadOnlyList<AxisTick> BuildTicks(double min, double max, double step)
-    {
-        var ticks = new List<AxisTick>();
-        var value = min;
-        var guard = 0;
-
-        while (value <= max + (step * 0.5) && guard < 100)
-        {
-            var normalized = NormalizeZero(value);
-            ticks.Add(new AxisTick(normalized, MapY(normalized, min, max)));
-            value += step;
-            guard++;
-        }
-
-        return new ReadOnlyCollection<AxisTick>(ticks);
-    }
-
-    private static (double Min, double Max, double Step) GetNiceScale(double min, double max, int tickCount)
-    {
-        if (min >= 0)
-        {
-            min = 0;
-        }
-
-        if (max <= 0)
-        {
-            max = 0;
-        }
-
-        if (Math.Abs(max - min) < 0.000001)
-        {
-            var padding = Math.Max(Math.Abs(max) * 0.2, 1d);
-            min -= padding;
-            max += padding;
-
-            if (min >= 0)
-            {
-                min = 0;
-            }
-
-            if (max <= 0)
-            {
-                max = 0;
-            }
-        }
-
-        var safeTickCount = Math.Max(tickCount, 2);
-        var range = NiceNumber(max - min, false);
-        var step = NiceNumber(range / (safeTickCount - 1), true);
-        var niceMin = Math.Floor(min / step) * step;
-        var niceMax = Math.Ceiling(max / step) * step;
-        return (niceMin, niceMax, step);
-    }
-
-    private static double NiceNumber(double range, bool round)
-    {
-        if (range <= 0 || !double.IsFinite(range))
-        {
-            return 1;
-        }
-
-        var exponent = Math.Floor(Math.Log10(range));
-        var fraction = range / Math.Pow(10, exponent);
-        double niceFraction;
-
-        if (round)
-        {
-            if (fraction < 1.5) niceFraction = 1;
-            else if (fraction < 3) niceFraction = 2;
-            else if (fraction < 7) niceFraction = 5;
-            else niceFraction = 10;
-        }
-        else
-        {
-            if (fraction <= 1) niceFraction = 1;
-            else if (fraction <= 2) niceFraction = 2;
-            else if (fraction <= 5) niceFraction = 5;
-            else niceFraction = 10;
-        }
-
-        return niceFraction * Math.Pow(10, exponent);
-    }
-
-    private static double NormalizeZero(double value) => Math.Abs(value) < 0.000001 ? 0 : value;
-
-    private static string Fmt(double value) =>
-        double.IsFinite(value)
-            ? value.ToString("F1", CultureInfo.InvariantCulture)
-            : "0.0";
+    private static string Fmt(double value) => ChartFormat.Fmt(value);
 
     private sealed record SegmentState(
         TItem Item,

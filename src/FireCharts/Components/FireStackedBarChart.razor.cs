@@ -1,4 +1,5 @@
 using FireCharts.Models;
+using FireCharts.Scales;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using System.Collections.ObjectModel;
@@ -22,6 +23,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
     private IReadOnlyList<BarState> _bars = Array.Empty<BarState>();
     private IReadOnlyList<LegendItem> _legendItems = Array.Empty<LegendItem>();
     private Dictionary<string, int> _segmentIndexByKey = [];
+    private IReadOnlyList<ScaleTick> _valueAxisTicks = Array.Empty<ScaleTick>();
     private double _computedMaxValue = 100;
     private int? _hoveredBarIndex;
     private int? _hoveredSegmentIndex;
@@ -130,6 +132,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
             Segments);
 
     internal double ComputedMaxValue => _computedMaxValue;
+    internal IReadOnlyList<ScaleTick> ValueAxisTicks => _valueAxisTicks;
 
     protected override void OnParametersSet()
     {
@@ -150,7 +153,8 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
         var items = Items ?? Array.Empty<TItem>();
         var comparer = EqualityComparer<TItem>.Default;
         var selectedItem = SelectedItem;
-        var maxValue = ResolveComputedMaxValue(items);
+        var scale = BuildValueScale(items);
+        var maxValue = scale.Max;
         var safeBarWidthRatio = Math.Clamp(BarWidthRatio, 0.1, 1.0);
         var bars = new List<BarState>(items.Count);
         var segments = new List<StackedBarChartSegment<TItem, TSegment>>();
@@ -158,6 +162,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
         var legendMap = new Dictionary<string, LegendItem>(StringComparer.Ordinal);
 
         _computedMaxValue = maxValue;
+        _valueAxisTicks = scale.Ticks;
 
         for (var barIndex = 0; barIndex < items.Count; barIndex++)
         {
@@ -170,7 +175,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 
             for (var segmentIndex = 0; segmentIndex < itemSegments.Count; segmentIndex++)
             {
-                var value = SanitizeValue(SegmentValueSelectorOrThrow(itemSegments[segmentIndex]));
+                var value = ChartValues.Sanitize(SegmentValueSelectorOrThrow(itemSegments[segmentIndex]));
                 sanitizedValues[segmentIndex] = value;
                 totalValue += value;
             }
@@ -188,7 +193,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
                 var fill = legendMap.TryGetValue(segmentLabel, out var existingLegendItem)
                     ? existingLegendItem.Fill
                     : SegmentColorSelector?.Invoke(segment) ?? DefaultPalette[legendMap.Count % DefaultPalette.Length];
-                var hoverFill = SegmentHoverColorSelector?.Invoke(segment) ?? Darken(fill);
+                var hoverFill = SegmentHoverColorSelector?.Invoke(segment) ?? ChartColor.DarkenByFactor(fill);
 
                 if (!legendMap.ContainsKey(segmentLabel))
                 {
@@ -676,81 +681,25 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 
     private string SegmentLabelSelectorOrThrow(TSegment segment) => SegmentLabelSelector!(segment);
 
-    private static double SanitizeValue(double value) =>
-        double.IsFinite(value) ? Math.Max(value, 0) : 0;
+    private static string Fmt(double value) => ChartFormat.Fmt(value);
 
-    private static string Fmt(double value) =>
-        double.IsFinite(value)
-            ? value.ToString("F1", CultureInfo.InvariantCulture)
-            : "0.0";
-
-    private static double GetNiceMax(double max)
+    private AxisScale BuildValueScale(IReadOnlyList<TItem> items)
     {
-        if (max <= 0 || !double.IsFinite(max))
+        var totals = items.Select(item => (SegmentsSelectorOrThrow(item) ?? Array.Empty<TSegment>())
+            .Select(SegmentValueSelectorOrThrow)
+            .Select(ChartValues.Sanitize)
+            .Sum());
+        var (pixelStart, pixelEnd) = Horizontal
+            ? (ChartAreaLeft, ChartAreaRight)
+            : (ChartAreaBottom, ChartAreaTop);
+
+        return AxisScale.FromValues(totals, pixelStart, pixelEnd, new AxisScaleOptions
         {
-            return 100;
-        }
-
-        var log = Math.Log10(max);
-        if (!double.IsFinite(log))
-        {
-            return 100;
-        }
-
-        var magnitude = Math.Pow(10, Math.Floor(log));
-        if (magnitude <= 0 || !double.IsFinite(magnitude))
-        {
-            return 100;
-        }
-
-        var normalized = max / magnitude;
-
-        double nice;
-        if (normalized <= 1) nice = 1;
-        else if (normalized <= 1.5) nice = 1.5;
-        else if (normalized <= 2) nice = 2;
-        else if (normalized <= 3) nice = 3;
-        else if (normalized <= 5) nice = 5;
-        else if (normalized <= 7.5) nice = 7.5;
-        else nice = 10;
-
-        var result = nice * magnitude;
-        return double.IsFinite(result) && result > 0 ? result : 100;
-    }
-
-    private static string Darken(string hex)
-    {
-        if (hex.Length != 7 || !hex.StartsWith('#'))
-        {
-            return hex;
-        }
-
-        if (!int.TryParse(hex.AsSpan(1, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var r) ||
-            !int.TryParse(hex.AsSpan(3, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var g) ||
-            !int.TryParse(hex.AsSpan(5, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b))
-        {
-            return hex;
-        }
-
-        return $"#{Math.Max((int)(r * 0.78), 0):X2}{Math.Max((int)(g * 0.78), 0):X2}{Math.Max((int)(b * 0.78), 0):X2}";
-    }
-
-    private double ResolveComputedMaxValue(IReadOnlyList<TItem> items)
-    {
-        if (MaxValue.HasValue && MaxValue.Value > 0 && double.IsFinite(MaxValue.Value))
-        {
-            return MaxValue.Value;
-        }
-
-        var max = items
-            .Select(item => (SegmentsSelectorOrThrow(item) ?? Array.Empty<TSegment>())
-                .Select(SegmentValueSelectorOrThrow)
-                .Select(SanitizeValue)
-                .Sum())
-            .DefaultIfEmpty(0)
-            .Max();
-
-        return GetNiceMax(max);
+            TickCount = SafeGridLineCount,
+            Baseline = AxisBaseline.IncludeZero,
+            ForcedMax = MaxValue is > 0 && double.IsFinite(MaxValue.Value) ? MaxValue : null,
+            EmptyFallbackMax = 100
+        });
     }
 
     internal sealed record BarState(

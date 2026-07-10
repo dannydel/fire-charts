@@ -35,22 +35,18 @@
             @if (ShowGridLines)
             {
                 <g class="grid-lines">
-                    @for (var i = 0; i <= SafeGridLineCount; i++)
+                    @foreach (var tick in ValueAxisTicks)
                     {
-                        var fraction = (double)i / SafeGridLineCount;
-
                         if (Horizontal)
                         {
-                            var x = ChartAreaLeft + fraction * ChartAreaWidth;
-                            <line x1="@Fmt(x)" y1="@Fmt(ChartAreaTop)"
-                                  x2="@Fmt(x)" y2="@Fmt(ChartAreaBottom)"
+                            <line x1="@Fmt(tick.Pixel)" y1="@Fmt(ChartAreaTop)"
+                                  x2="@Fmt(tick.Pixel)" y2="@Fmt(ChartAreaBottom)"
                                   class="grid-line" />
                         }
                         else
                         {
-                            var y = ChartAreaBottom - fraction * ChartAreaHeight;
-                            <line x1="@Fmt(ChartAreaLeft)" y1="@Fmt(y)"
-                                  x2="@Fmt(ChartAreaRight)" y2="@Fmt(y)"
+                            <line x1="@Fmt(ChartAreaLeft)" y1="@Fmt(tick.Pixel)"
+                                  x2="@Fmt(ChartAreaRight)" y2="@Fmt(tick.Pixel)"
                                   class="grid-line" />
                         }
                     }
@@ -69,24 +65,19 @@
             @if (ShowAxisLabels)
             {
                 <g class="value-axis-labels">
-                    @for (var i = 0; i <= SafeGridLineCount; i++)
+                    @foreach (var tick in ValueAxisTicks)
                     {
-                        var fraction = (double)i / SafeGridLineCount;
-                        var value = ComputedMaxValue * fraction;
-
                         if (Horizontal)
                         {
-                            var x = ChartAreaLeft + fraction * ChartAreaWidth;
-                            <SvgText X="@x" Y="@(ChartAreaBottom + 20)"
+                            <SvgText X="@tick.Pixel" Y="@(ChartAreaBottom + 20)"
                                      CssClass="axis-label" TextAnchor="middle"
-                                     Content="@value.ToString(ValueFormat, CultureInfo.InvariantCulture)" />
+                                     Content="@tick.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)" />
                         }
                         else
                         {
-                            var y = ChartAreaBottom - fraction * ChartAreaHeight;
-                            <SvgText X="@(ChartAreaLeft - 8)" Y="@y"
+                            <SvgText X="@(ChartAreaLeft - 8)" Y="@tick.Pixel"
                                      CssClass="axis-label" TextAnchor="end" DominantBaseline="middle"
-                                     Content="@value.ToString(ValueFormat, CultureInfo.InvariantCulture)" />
+                                     Content="@tick.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)" />
                         }
                     }
                 </g>
