@@ -241,11 +241,10 @@ public sealed class FireStackedBarChartTests : TestContext
     [Fact]
     public void ContainedVerticalSharedTooltipUsesCornerAnchoredSidePlacement()
     {
-        var module = new RecordingJsObjectReference();
-        module.SetupHandler("resolveTooltipPosition", _ => """{"left":58,"top":74,"placement":"right"}""");
-
-        var runtime = new RecordingJsRuntime(module);
-        Services.AddSingleton<IJSRuntime>(runtime);
+        // Large host so the preferred "right" placement fits; the engine keeps the
+        // requested side placement, which verifies the chart asks for it.
+        var measurer = new FakeTooltipMeasurer(new TooltipMeasurement(5000, 5000, 80, 40));
+        Services.AddSingleton<ITooltipMeasurer>(measurer);
 
         var cut = RenderComponent<FireStackedBarChart<StackedDatum, SegmentDatum>>(parameters => parameters
             .Add(component => component.Items, SampleData)
@@ -262,11 +261,13 @@ public sealed class FireStackedBarChartTests : TestContext
             var tooltip = cut.Find(".chart-tooltip");
             Assert.Contains("chart-tooltip--contained", tooltip.GetAttribute("class"));
             Assert.Contains("chart-tooltip--placement-right", tooltip.GetAttribute("class"));
-            Assert.Equal("left: 58.0px; top: 74.0px;", tooltip.GetAttribute("style"));
+            var style = tooltip.GetAttribute("style")!;
+            Assert.Contains("left:", style);
+            Assert.Contains("top:", style);
+            Assert.DoesNotContain("visibility: hidden", style);
         });
 
-        var invocation = Assert.Single(module.Invocations, call => call.Identifier == "resolveTooltipPosition");
-        Assert.Equal("right", invocation.Arguments[4]);
+        Assert.True(measurer.MeasureCount >= 1);
     }
 
     [Fact]

@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Globalization;
-using System.Text.Json;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.JSInterop;
 
 namespace FireCharts.Components;
@@ -10,9 +10,9 @@ namespace FireCharts.Components;
 public sealed partial class ChartTooltip : ComponentBase, IAsyncDisposable
 {
     private const double DefaultGutter = 8;
-    private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web);
 
-    private IJSObjectReference? _module;
+    private ITooltipMeasurer? _measurer;
+    private bool _ownsMeasurer;
     private ElementReference _tooltipElement;
     private TooltipSnapshot _lastMeasuredSnapshot;
     private bool _pendingMeasurement;
@@ -23,6 +23,8 @@ public sealed partial class ChartTooltip : ComponentBase, IAsyncDisposable
     [CascadingParameter] private ChartSurface? Surface { get; set; }
 
     [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+
+    [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
 
     [Parameter] public double AnchorX { get; set; }
     [Parameter] public double AnchorY { get; set; }
@@ -113,28 +115,18 @@ public sealed partial class ChartTooltip : ComponentBase, IAsyncDisposable
             return;
         }
 
-        _module ??= await JSRuntime.InvokeAsync<IJSObjectReference>(
-            "import",
-            "./_content/FireCharts/chartTooltip.js");
-
-        var resultJson = await _module.InvokeAsync<string>(
-            "resolveTooltipPosition",
-            Surface.HostElement,
-            _tooltipElement,
-            AnchorX,
-            AnchorY,
-            GetPlacementValue(PreferredPlacement),
-            Offset,
-            Gutter);
-
-        var result = JsonSerializer.Deserialize<TooltipResolution>(resultJson, _jsonOptions);
-        if (result is null)
+        var measurement = await ResolveMeasurer().MeasureAsync(Surface.HostElement, _tooltipElement);
+        if (measurement is null)
         {
             return;
         }
 
-        CurrentStyle = FormatPositionStyle(result.Left, result.Top);
-        _resolvedPlacementClass = GetPlacementClass(result.Placement);
+        var layout = TooltipPlacementEngine.Resolve(
+            new TooltipLayoutRequest(AnchorX, AnchorY, PreferredPlacement, Offset, Gutter),
+            measurement.Value);
+
+        CurrentStyle = FormatPositionStyle(layout.Left, layout.Top);
+        _resolvedPlacementClass = GetPlacementClass(layout.Placement);
         _lastMeasuredSnapshot = new TooltipSnapshot(
             AnchorX,
             AnchorY,
@@ -161,32 +153,36 @@ public sealed partial class ChartTooltip : ComponentBase, IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        if (_module is null)
+        if (_ownsMeasurer && _measurer is IAsyncDisposable disposable)
         {
-            return;
+            await disposable.DisposeAsync();
+        }
+    }
+
+    private ITooltipMeasurer ResolveMeasurer()
+    {
+        if (_measurer is not null)
+        {
+            return _measurer;
         }
 
-        try
+        var injected = ServiceProvider.GetService<ITooltipMeasurer>();
+        if (injected is not null)
         {
-            await _module.DisposeAsync();
+            _measurer = injected;
+            _ownsMeasurer = false;
         }
-        catch (JSDisconnectedException)
+        else
         {
+            _measurer = new JsTooltipMeasurer(JSRuntime);
+            _ownsMeasurer = true;
         }
+
+        return _measurer;
     }
 
     private static string FormatPositionStyle(double left, double top) =>
         $"left: {ChartFormat.Fmt(left)}px; top: {ChartFormat.Fmt(top)}px;";
-
-    private static string GetPlacementValue(ChartTooltipPlacement placement) =>
-        placement switch
-        {
-            ChartTooltipPlacement.Above => "above",
-            ChartTooltipPlacement.Below => "below",
-            ChartTooltipPlacement.Left => "left",
-            ChartTooltipPlacement.Right => "right",
-            _ => "above"
-        };
 
     private static string GetPlacementClass(ChartTooltipPlacement placement) =>
         placement switch
@@ -198,16 +194,6 @@ public sealed partial class ChartTooltip : ComponentBase, IAsyncDisposable
             _ => "chart-tooltip--placement-above"
         };
 
-    private static string GetPlacementClass(string? placement) =>
-        placement switch
-        {
-            "above" => "chart-tooltip--placement-above",
-            "below" => "chart-tooltip--placement-below",
-            "left" => "chart-tooltip--placement-left",
-            "right" => "chart-tooltip--placement-right",
-            _ => "chart-tooltip--placement-above"
-        };
-
     private readonly record struct TooltipSnapshot(
         double AnchorX,
         double AnchorY,
@@ -215,6 +201,4 @@ public sealed partial class ChartTooltip : ComponentBase, IAsyncDisposable
         double Offset,
         double Gutter,
         object? MeasurementKey);
-
-    private sealed record TooltipResolution(double Left, double Top, string Placement);
 }
