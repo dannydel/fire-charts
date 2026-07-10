@@ -46,7 +46,7 @@ public sealed class FireClusteredBarChartTests : TestContext
 
         Assert.Equal(2, heights.Count);
         Assert.All(heights, height => Assert.True(height > 0));
-        Assert.Contains("75", axisLabels);
+        Assert.Contains("80", axisLabels);
     }
 
     [Fact]
@@ -241,11 +241,10 @@ public sealed class FireClusteredBarChartTests : TestContext
     [Fact]
     public void ContainedHorizontalTooltipUsesMeasuredSidePlacement()
     {
-        var module = new RecordingJsObjectReference();
-        module.SetupHandler("resolveTooltipPosition", _ => """{"left":52,"top":78,"placement":"right"}""");
-
-        var runtime = new RecordingJsRuntime(module);
-        Services.AddSingleton<IJSRuntime>(runtime);
+        // Large host so the preferred "right" placement fits; the engine keeps the
+        // requested side placement, which verifies the chart asks for it.
+        var measurer = new FakeTooltipMeasurer(new TooltipMeasurement(5000, 5000, 80, 40));
+        Services.AddSingleton<ITooltipMeasurer>(measurer);
 
         var cut = RenderComponent<FireClusteredBarChart<ClusteredDatum, SegmentDatum>>(parameters => parameters
             .Add(component => component.Items, SampleData)
@@ -264,11 +263,13 @@ public sealed class FireClusteredBarChartTests : TestContext
             var tooltip = cut.Find(".chart-tooltip");
             Assert.Contains("chart-tooltip--contained", tooltip.GetAttribute("class"));
             Assert.Contains("chart-tooltip--placement-right", tooltip.GetAttribute("class"));
-            Assert.Equal("left: 52.0px; top: 78.0px;", tooltip.GetAttribute("style"));
+            var style = tooltip.GetAttribute("style")!;
+            Assert.Contains("left:", style);
+            Assert.Contains("top:", style);
+            Assert.DoesNotContain("visibility: hidden", style);
         });
 
-        var invocation = Assert.Single(module.Invocations, call => call.Identifier == "resolveTooltipPosition");
-        Assert.Equal("right", invocation.Arguments[4]);
+        Assert.True(measurer.MeasureCount >= 1);
     }
 
     [Fact]

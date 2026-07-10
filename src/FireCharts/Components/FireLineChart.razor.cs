@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using FireCharts.Models;
+using FireCharts.Scales;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 
@@ -148,11 +149,13 @@ public partial class FireLineChart<TItem> : ComponentBase
 
         var allPoints = rawSeries.SelectMany(series => series).ToList();
         var xDomain = GetXDomain(allPoints);
-        var yScale = GetYScale(allPoints.Select(point => point.Y).ToList(), SafeYAxisTickCount);
-        var baselineY = MapY(GetAreaBaselineValue(yScale.Min, yScale.Max), yScale.Min, yScale.Max);
+        var yScale = AxisScale.FromValues(allPoints.Select(point => point.Y), SafeYAxisTickCount, _plot.Bottom, _plot.Top);
+        var baselineY = yScale.ToPixel(GetAreaBaselineValue(yScale.Min, yScale.Max));
 
         _xTicks = BuildXTicks(allPoints, xDomain.Min, xDomain.Max);
-        _yTicks = BuildYTicks(yScale.Min, yScale.Max);
+        _yTicks = yScale.Ticks
+            .Select(tick => new AxisTick(tick.Value, tick.Value.ToString(ValueFormat, CultureInfo.InvariantCulture), tick.Pixel))
+            .ToArray();
 
         var states = new List<RenderedSeries>(rawSeries.Count);
         var pointsByKey = new Dictionary<PointKey, LineChartPoint<TItem>>(allPoints.Count);
@@ -173,7 +176,7 @@ public partial class FireLineChart<TItem> : ComponentBase
                         point.Y,
                         new SvgPoint(
                             MapX(point.X.NumericValue, xDomain.Min, xDomain.Max),
-                            MapY(point.Y, yScale.Min, yScale.Max)),
+                            yScale.ToPixel(point.Y)),
                         point.Stroke,
                         point.HoverStroke,
                         point.Fill,
@@ -229,7 +232,7 @@ public partial class FireLineChart<TItem> : ComponentBase
                     string.IsNullOrWhiteSpace(definition.Name) ? $"Series {i + 1}" : definition.Name,
                     definition.Items ?? Array.Empty<TItem>(),
                     stroke,
-                    definition.HoverColor ?? Darken(stroke),
+                    definition.HoverColor ?? ChartColor.Darken(stroke),
                     definition.FillColor ?? definition.Color,
                     Math.Clamp(definition.StrokeWidth ?? SafeStrokeWidth, 1.25, 8),
                     Math.Clamp(definition.AreaOpacity ?? SafeAreaOpacity, 0.05, 0.65)));
@@ -460,41 +463,6 @@ public partial class FireLineChart<TItem> : ComponentBase
         return (min, max);
     }
 
-    private static (double Min, double Max, double Step) GetYScale(IReadOnlyList<double> values, int tickCount)
-    {
-        var min = values.Min();
-        var max = values.Max();
-
-        if (min >= 0)
-        {
-            min = 0;
-        }
-
-        if (max <= 0)
-        {
-            max = 0;
-        }
-
-        if (Math.Abs(max - min) < 0.000001)
-        {
-            var padding = Math.Max(Math.Abs(max) * 0.2, 1d);
-            min -= padding;
-            max += padding;
-
-            if (max <= 0)
-            {
-                max = 0;
-            }
-
-            if (min >= 0)
-            {
-                min = 0;
-            }
-        }
-
-        return GetNiceScale(min, max, tickCount);
-    }
-
     private IReadOnlyList<AxisTick> BuildXTicks(IReadOnlyList<RawPoint> points, double min, double max)
     {
         if (_xAxisKind == LineChartXValueKind.DateTime)
@@ -523,46 +491,14 @@ public partial class FireLineChart<TItem> : ComponentBase
                 .ToList());
         }
 
-        var scale = GetNiceScale(min, max, SafeXAxisTickCount);
-        return BuildTicks(scale.Min, scale.Max, scale.Step, value => FormatNumber(value), value => MapX(value, scale.Min, scale.Max));
-    }
-
-    private IReadOnlyList<AxisTick> BuildYTicks(double min, double max)
-    {
-        var scale = GetNiceScale(min, max, SafeYAxisTickCount);
-        return BuildTicks(scale.Min, scale.Max, scale.Step, value => value.ToString(ValueFormat, CultureInfo.InvariantCulture), value => MapY(value, scale.Min, scale.Max));
-    }
-
-    private static ReadOnlyCollection<AxisTick> BuildTicks(
-        double min,
-        double max,
-        double step,
-        Func<double, string> labelFactory,
-        Func<double, double> positionFactory)
-    {
-        var ticks = new List<AxisTick>();
-        var value = min;
-        var guard = 0;
-
-        while (value <= max + (step * 0.5) && guard < 100)
-        {
-            var normalized = NormalizeZero(value);
-            ticks.Add(new AxisTick(normalized, labelFactory(normalized), positionFactory(normalized)));
-            value += step;
-            guard++;
-        }
-
-        return new ReadOnlyCollection<AxisTick>(ticks);
-    }
-
-    private static (double Min, double Max, double Step) GetNiceScale(double min, double max, int tickCount)
-    {
-        var safeTickCount = Math.Max(tickCount, 2);
-        var range = NiceNumber(max - min, false);
-        var step = NiceNumber(range / (safeTickCount - 1), true);
-        var niceMin = Math.Floor(min / step) * step;
-        var niceMax = Math.Ceiling(max / step) * step;
-        return (niceMin, niceMax, step);
+        var scale = AxisScale.FromValues(
+            new[] { min, max },
+            _plot.Left,
+            _plot.Right,
+            new AxisScaleOptions { TickCount = SafeXAxisTickCount, Baseline = AxisBaseline.DataExtent });
+        return scale.Ticks
+            .Select(tick => new AxisTick(tick.Value, FormatNumber(tick.Value), tick.Pixel))
+            .ToList();
     }
 
     private string BuildLinePath(IReadOnlyList<LineChartPoint<TItem>> points)
@@ -652,45 +588,10 @@ public partial class FireLineChart<TItem> : ComponentBase
         return string.Join(" ", segments);
     }
 
-    private static double NiceNumber(double range, bool round)
-    {
-        if (range <= 0 || !double.IsFinite(range))
-        {
-            return 1;
-        }
-
-        var exponent = Math.Floor(Math.Log10(range));
-        var fraction = range / Math.Pow(10, exponent);
-        double niceFraction;
-
-        if (round)
-        {
-            if (fraction < 1.5) niceFraction = 1;
-            else if (fraction < 3) niceFraction = 2;
-            else if (fraction < 7) niceFraction = 5;
-            else niceFraction = 10;
-        }
-        else
-        {
-            if (fraction <= 1) niceFraction = 1;
-            else if (fraction <= 2) niceFraction = 2;
-            else if (fraction <= 5) niceFraction = 5;
-            else niceFraction = 10;
-        }
-
-        return niceFraction * Math.Pow(10, exponent);
-    }
-
     private double MapX(double value, double min, double max)
     {
         var ratio = (value - min) / Math.Max(max - min, 0.000001);
         return _plot.Left + (Math.Clamp(ratio, 0, 1) * _plot.Width);
-    }
-
-    private double MapY(double value, double min, double max)
-    {
-        var ratio = (value - min) / Math.Max(max - min, 0.000001);
-        return _plot.Bottom - (Math.Clamp(ratio, 0, 1) * _plot.Height);
     }
 
     private static double GetAreaBaselineValue(double min, double max)
@@ -810,25 +711,6 @@ public partial class FireLineChart<TItem> : ComponentBase
         return date.ToString("HH:mm", CultureInfo.InvariantCulture);
     }
 
-    private static string Fmt(double value) =>
-        double.IsFinite(value)
-            ? value.ToString("F1", CultureInfo.InvariantCulture)
-            : "0.0";
+    private static string Fmt(double value) => ChartFormat.Fmt(value);
 
-    private static double NormalizeZero(double value) =>
-        Math.Abs(value) < 0.000001 ? 0 : value;
-
-    private static string Darken(string hex)
-    {
-        if (hex.Length != 7 || !hex.StartsWith('#'))
-        {
-            return "#8f2f1a";
-        }
-
-        var r = Convert.ToInt32(hex[1..3], 16);
-        var g = Convert.ToInt32(hex[3..5], 16);
-        var b = Convert.ToInt32(hex[5..7], 16);
-
-        return $"#{Math.Max(r - 28, 0):X2}{Math.Max(g - 28, 0):X2}{Math.Max(b - 28, 0):X2}";
-    }
 }

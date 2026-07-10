@@ -129,8 +129,5 @@ public partial class ChartSurface : ComponentBase, IAsyncDisposable
         _dotNetRef?.Dispose();
     }
 
-    private static string Fmt(double value) =>
-        double.IsFinite(value)
-            ? value.ToString("F1", CultureInfo.InvariantCulture)
-            : "0.0";
+    private static string Fmt(double value) => ChartFormat.Fmt(value);
 }
