@@ -1,8 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using FireCharts.Interaction;
 using FireCharts.Models;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Web;
 
 namespace FireCharts.Components;
 
@@ -56,9 +56,7 @@ public partial class FireLineChart<TItem> : ComponentBase
     private IReadOnlyList<RenderedSeries> _seriesStates = Array.Empty<RenderedSeries>();
     private IReadOnlyList<AxisTick> _xTicks = Array.Empty<AxisTick>();
     private IReadOnlyList<AxisTick> _yTicks = Array.Empty<AxisTick>();
-    private Dictionary<PointKey, LineChartPoint<TItem>> _pointsByKey = [];
-    private PointKey? _hoveredPointKey;
-    private PointKey? _focusedPointKey;
+    private ChartInteraction<LineChartPoint<TItem>, PointKey> _interaction = default!;
     private int? _legendSeriesIndex;
     private double? _renderWidth;
     private double? _renderHeight;
@@ -108,7 +106,7 @@ public partial class FireLineChart<TItem> : ComponentBase
     private IReadOnlyList<RenderedSeries> SeriesStates => _seriesStates;
     private IReadOnlyList<AxisTick> XTicks => _xTicks;
     private IReadOnlyList<AxisTick> YTicks => _yTicks;
-    private LineChartPoint<TItem>? HoveredPoint => FindPoint(_hoveredPointKey);
+    private LineChartPoint<TItem>? HoveredPoint => _interaction.Hovered;
     private double SafeWidth => Math.Max(_renderWidth ?? Width, 1);
     private double SafeHeight => Math.Max(_renderHeight ?? Height, 1);
     private double ChartAreaLeft => PaddingLeft;
@@ -124,9 +122,25 @@ public partial class FireLineChart<TItem> : ComponentBase
     private int SafeXAxisTickCount => Math.Max(XAxisTickCount, 2);
     private int SafeYAxisTickCount => Math.Max(YAxisTickCount, 2);
     private int? ActiveSeriesIndex => _legendSeriesIndex
-        ?? HoveredPoint?.SeriesIndex
-        ?? FindPoint(_focusedPointKey)?.SeriesIndex
+        ?? _interaction.Active?.SeriesIndex
         ?? SelectedPoint?.SeriesIndex;
+
+    protected override void OnInitialized()
+    {
+        _interaction = new ChartInteraction<LineChartPoint<TItem>, PointKey>(new ChartInteractionOptions<LineChartPoint<TItem>, PointKey>
+        {
+            KeySelector = point => new PointKey(point.SeriesIndex, point.PointIndex),
+            RequestRender = () => InvokeAsync(StateHasChanged),
+            OnActiveChanged = point => OnPointHoverChanged.InvokeAsync(ToInteraction(point)),
+            OnActivate = async point =>
+            {
+                SelectedPoint = point;
+                await InvokeAsync(StateHasChanged);
+                await SelectedPointChanged.InvokeAsync(point);
+                await OnPointClick.InvokeAsync(ToInteraction(point));
+            }
+        });
+    }
 
     protected override void OnParametersSet()
     {
@@ -151,7 +165,7 @@ public partial class FireLineChart<TItem> : ComponentBase
             _seriesStates = Array.Empty<RenderedSeries>();
             _xTicks = Array.Empty<AxisTick>();
             _yTicks = Array.Empty<AxisTick>();
-            _pointsByKey = [];
+            _interaction.SetElements(Array.Empty<LineChartPoint<TItem>>());
             return;
         }
 
@@ -164,7 +178,6 @@ public partial class FireLineChart<TItem> : ComponentBase
         _yTicks = BuildYTicks(yScale.Min, yScale.Max);
 
         var states = new List<RenderedSeries>(rawSeries.Count);
-        var pointsByKey = new Dictionary<PointKey, LineChartPoint<TItem>>(allPoints.Count);
 
         foreach (var series in rawSeries)
         {
@@ -197,11 +210,6 @@ public partial class FireLineChart<TItem> : ComponentBase
             var linePath = BuildLinePath(points);
             var areaPath = Variant == LineChartVariant.Area ? BuildAreaPath(points, baselineY) : string.Empty;
 
-            foreach (var point in points)
-            {
-                pointsByKey[new PointKey(point.SeriesIndex, point.PointIndex)] = point;
-            }
-
             states.Add(new RenderedSeries
             {
                 Index = points[0].SeriesIndex,
@@ -219,8 +227,7 @@ public partial class FireLineChart<TItem> : ComponentBase
         }
 
         _seriesStates = new ReadOnlyCollection<RenderedSeries>(states);
-        _pointsByKey = pointsByKey;
-        NormalizeInteractionState();
+        _interaction.SetElements(states.SelectMany(series => series.Points).ToList());
     }
 
     private List<InputSeries> BuildInputSeries()
@@ -338,80 +345,6 @@ public partial class FireLineChart<TItem> : ComponentBase
         RebuildChart();
     }
 
-    private async Task HandleHoverAsync(LineChartPoint<TItem> point)
-    {
-        var key = new PointKey(point.SeriesIndex, point.PointIndex);
-        if (_hoveredPointKey == key)
-        {
-            return;
-        }
-
-        _hoveredPointKey = key;
-        await RefreshPointsAsync();
-
-        if (HoveredPoint is not null)
-        {
-            await OnPointHoverChanged.InvokeAsync(ToInteraction(HoveredPoint));
-        }
-    }
-
-    private async Task HandleHoverLeaveAsync(LineChartPoint<TItem> point)
-    {
-        var key = new PointKey(point.SeriesIndex, point.PointIndex);
-        if (_hoveredPointKey != key || _focusedPointKey == key)
-        {
-            return;
-        }
-
-        _hoveredPointKey = null;
-        await RefreshPointsAsync();
-    }
-
-    private async Task HandleFocusAsync(LineChartPoint<TItem> point)
-    {
-        var key = new PointKey(point.SeriesIndex, point.PointIndex);
-        _focusedPointKey = key;
-        _hoveredPointKey = key;
-        await RefreshPointsAsync();
-
-        if (HoveredPoint is not null)
-        {
-            await OnPointHoverChanged.InvokeAsync(ToInteraction(HoveredPoint));
-        }
-    }
-
-    private async Task HandleBlurAsync(LineChartPoint<TItem> point)
-    {
-        var key = new PointKey(point.SeriesIndex, point.PointIndex);
-        if (_focusedPointKey == key)
-        {
-            _focusedPointKey = null;
-        }
-
-        if (_hoveredPointKey == key)
-        {
-            _hoveredPointKey = null;
-        }
-
-        await RefreshPointsAsync();
-    }
-
-    private async Task HandleSelectAsync(LineChartPoint<TItem> point)
-    {
-        SelectedPoint = point;
-        await RefreshPointsAsync();
-        await SelectedPointChanged.InvokeAsync(point);
-        await OnPointClick.InvokeAsync(ToInteraction(point));
-    }
-
-    private async Task HandleKeyDownAsync(KeyboardEventArgs args, LineChartPoint<TItem> point)
-    {
-        if (args.Key is "Enter" or " ")
-        {
-            await HandleSelectAsync(point);
-        }
-    }
-
     private void HandleLegendEnter(int seriesIndex)
     {
         _legendSeriesIndex = seriesIndex;
@@ -420,32 +353,6 @@ public partial class FireLineChart<TItem> : ComponentBase
     private void HandleLegendLeave()
     {
         _legendSeriesIndex = null;
-    }
-
-    private async Task RefreshPointsAsync()
-        => await InvokeAsync(StateHasChanged);
-
-    private LineChartPoint<TItem>? FindPoint(PointKey? key)
-    {
-        if (key is null)
-        {
-            return null;
-        }
-
-        return _pointsByKey.GetValueOrDefault(key.Value);
-    }
-
-    private void NormalizeInteractionState()
-    {
-        if (FindPoint(_hoveredPointKey) is null)
-        {
-            _hoveredPointKey = null;
-        }
-
-        if (FindPoint(_focusedPointKey) is null)
-        {
-            _focusedPointKey = null;
-        }
     }
 
     private bool ShouldRenderPoint(LineChartPoint<TItem> point) =>
@@ -779,11 +686,9 @@ public partial class FireLineChart<TItem> : ComponentBase
         SelectedPoint.SeriesIndex == point.SeriesIndex &&
         SelectedPoint.PointIndex == point.PointIndex;
 
-    private bool IsHovered(LineChartPoint<TItem> point) =>
-        _hoveredPointKey == new PointKey(point.SeriesIndex, point.PointIndex);
+    private bool IsHovered(LineChartPoint<TItem> point) => _interaction.IsHovered(point);
 
-    private bool IsFocused(LineChartPoint<TItem> point) =>
-        _focusedPointKey == new PointKey(point.SeriesIndex, point.PointIndex);
+    private bool IsFocused(LineChartPoint<TItem> point) => _interaction.IsFocused(point);
 
     private LineChartPointInteraction<TItem> ToInteraction(LineChartPoint<TItem> point) =>
         new(point.Item, point.SeriesIndex, point.SeriesName, point.PointIndex, point.Label, point.X, point.Y);

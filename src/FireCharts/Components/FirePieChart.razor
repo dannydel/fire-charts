@@ -53,12 +53,12 @@
                                aria-label="@point.AccessibleLabel"
                                aria-selected="@point.IsSelected"
                                transform="translate(@Fmt(point.Offset.X) @Fmt(point.Offset.Y))"
-                               @onmouseover="() => HandleHoverAsync(point)"
-                               @onmouseout="() => HandleHoverLeaveAsync(point)"
-                               @onfocus="() => HandleFocusAsync(point)"
-                               @onblur="() => HandleBlurAsync(point)"
-                               @onclick="() => HandleSelectAsync(point)"
-                               @onkeydown="(args) => HandleKeyDownAsync(args, point)">
+                               @onmouseover="() => _interaction.HoverAsync(point)"
+                               @onmouseout="() => _interaction.HoverLeaveAsync(point)"
+                               @onfocus="() => _interaction.FocusAsync(point)"
+                               @onblur="() => _interaction.BlurAsync(point)"
+                               @onclick="() => _interaction.ActivateAsync(point)"
+                               @onkeydown="(args) => _interaction.KeyDownAsync(args, point)">
                                 <path class="pie-slice"
                                       d="@point.PathData"
                                       style="--slice-color: @point.Fill; --slice-hover-color: @point.HoverFill">
@@ -165,11 +165,11 @@
                         class="@GetLegendItemClasses(point)"
                         role="listitem"
                         aria-pressed="@point.IsSelected"
-                        @onmouseover="() => HandleHoverAsync(point)"
-                        @onmouseout="() => HandleHoverLeaveAsync(point)"
-                        @onfocus="() => HandleFocusAsync(point)"
-                        @onblur="() => HandleBlurAsync(point)"
-                        @onclick="() => HandleSelectAsync(point)">
+                        @onmouseover="() => _interaction.HoverAsync(point)"
+                        @onmouseout="() => _interaction.HoverLeaveAsync(point)"
+                        @onfocus="() => _interaction.FocusAsync(point)"
+                        @onblur="() => _interaction.BlurAsync(point)"
+                        @onclick="() => _interaction.ActivateAsync(point)">
                     <span class="pie-legend__swatch" style="@($"--legend-color: {point.Fill}")" aria-hidden="true"></span>
                     <span class="pie-legend__label">@point.Label</span>
                     <span class="pie-legend__value">@point.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)</span>

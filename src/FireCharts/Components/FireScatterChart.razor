@@ -104,12 +104,12 @@
                                    role="button"
                                    aria-label="@point.AccessibleLabel"
                                    aria-selected="@IsSelected(point)"
-                                   @onmouseover="() => HandleHoverAsync(point)"
-                                   @onmouseout="() => HandleHoverLeaveAsync(point)"
-                                   @onfocus="() => HandleFocusAsync(point)"
-                                   @onblur="() => HandleBlurAsync(point)"
-                                   @onclick="() => HandleSelectAsync(point)"
-                                   @onkeydown="(args) => HandleKeyDownAsync(args, point)">
+                                   @onmouseover="() => _interaction.HoverAsync(point)"
+                                   @onmouseout="() => _interaction.HoverLeaveAsync(point)"
+                                   @onfocus="() => _interaction.FocusAsync(point)"
+                                   @onblur="() => _interaction.BlurAsync(point)"
+                                   @onclick="() => _interaction.ActivateAsync(point)"
+                                   @onkeydown="(args) => _interaction.KeyDownAsync(args, point)">
                                     <circle class="scatter-point"
                                             cx="@Fmt(point.Coordinates.X)"
                                             cy="@Fmt(point.Coordinates.Y)"

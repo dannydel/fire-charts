@@ -158,12 +158,12 @@
                                    tabindex="0"
                                    aria-label="@segment.AccessibleLabel"
                                    aria-selected="@IsSelected(segment)"
-                                   @onmouseover="() => HandleHoverAsync(segment)"
-                                   @onmouseout="() => HandleHoverLeaveAsync(segment)"
-                                   @onfocus="() => HandleFocusAsync(segment)"
-                                   @onblur="() => HandleBlurAsync(segment)"
-                                   @onclick="() => HandleSelectAsync(segment)"
-                                   @onkeydown="(args) => HandleKeyDownAsync(args, segment)">
+                                   @onmouseover="() => _interaction.HoverAsync(segment)"
+                                   @onmouseout="() => HandleSegmentHoverLeaveAsync(segment)"
+                                   @onfocus="() => _interaction.FocusAsync(segment)"
+                                   @onblur="() => _interaction.BlurAsync(segment)"
+                                   @onclick="() => _interaction.ActivateAsync(segment)"
+                                   @onkeydown="(args) => _interaction.KeyDownAsync(args, segment)">
                                     <rect class="clustered-segment-rect"
                                           x="@Fmt(segment.Rect.X)"
                                           y="@Fmt(segment.Rect.Y)"
