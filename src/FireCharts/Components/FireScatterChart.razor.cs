@@ -202,7 +202,7 @@ public partial class FireScatterChart<TItem> : ComponentBase
                     string.IsNullOrWhiteSpace(definition.Name) ? $"Series {i + 1}" : definition.Name,
                     definition.Items ?? Array.Empty<TItem>(),
                     fill,
-                    definition.HoverColor ?? Darken(fill),
+                    definition.HoverColor ?? ChartColor.Darken(fill),
                     Math.Clamp(definition.MarkerRadius ?? SafeMarkerRadius, 2.5, 12)));
             }
 
@@ -254,7 +254,7 @@ public partial class FireScatterChart<TItem> : ComponentBase
                     : ColorSelector?.Invoke(item) ?? series.Fill;
                 var hoverFill = HasSeriesDefinitions
                     ? series.HoverFill
-                    : HoverColorSelector?.Invoke(item) ?? Darken(fill);
+                    : HoverColorSelector?.Invoke(item) ?? ChartColor.Darken(fill);
                 var label = LabelSelector?.Invoke(item) ?? FormatXValue(x);
                 var accessibleText = TooltipTextSelector?.Invoke(item)
                     ?? $"{series.Name} {label}: {y.ToString(ValueFormat, CultureInfo.InvariantCulture)}";
@@ -572,22 +572,6 @@ public partial class FireScatterChart<TItem> : ComponentBase
         return date.ToString("HH:mm", CultureInfo.InvariantCulture);
     }
 
-    private static string Fmt(double value) =>
-        double.IsFinite(value)
-            ? value.ToString("F1", CultureInfo.InvariantCulture)
-            : "0.0";
+    private static string Fmt(double value) => ChartFormat.Fmt(value);
 
-    private static string Darken(string hex)
-    {
-        if (hex.Length != 7 || !hex.StartsWith('#'))
-        {
-            return "#8f2f1a";
-        }
-
-        var r = Convert.ToInt32(hex[1..3], 16);
-        var g = Convert.ToInt32(hex[3..5], 16);
-        var b = Convert.ToInt32(hex[5..7], 16);
-
-        return $"#{Math.Max(r - 28, 0):X2}{Math.Max(g - 28, 0):X2}{Math.Max(b - 28, 0):X2}";
-    }
 }

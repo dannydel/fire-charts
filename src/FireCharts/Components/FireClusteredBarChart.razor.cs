@@ -176,7 +176,7 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
             for (var segmentIndex = 0; segmentIndex < itemSegments.Count; segmentIndex++)
             {
                 var segment = itemSegments[segmentIndex];
-                var value = SanitizeValue(SegmentValueSelectorOrThrow(segment));
+                var value = ChartValues.Sanitize(SegmentValueSelectorOrThrow(segment));
                 if (value <= 0)
                 {
                     continue;
@@ -217,7 +217,7 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
                 var fill = legendMap.TryGetValue(segmentLayout.Label, out var existingLegendItem)
                     ? existingLegendItem.Fill
                     : SegmentColorSelector?.Invoke(segmentLayout.Segment) ?? DefaultPalette[legendMap.Count % DefaultPalette.Length];
-                var hoverFill = SegmentHoverColorSelector?.Invoke(segmentLayout.Segment) ?? Darken(fill);
+                var hoverFill = SegmentHoverColorSelector?.Invoke(segmentLayout.Segment) ?? ChartColor.DarkenByFactor(fill);
 
                 if (!legendMap.ContainsKey(segmentLayout.Label))
                 {
@@ -670,37 +670,14 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
         index < _segments.Count &&
         string.Equals(_segments[index].Key, segment.Key, StringComparison.Ordinal);
 
-    private static double SanitizeValue(double value) =>
-        double.IsFinite(value) ? Math.Max(value, 0) : 0;
-
-    private static string Fmt(double value) =>
-        double.IsFinite(value)
-            ? value.ToString("F1", CultureInfo.InvariantCulture)
-            : "0.0";
-
-    private static string Darken(string hex)
-    {
-        if (hex.Length != 7 || !hex.StartsWith('#'))
-        {
-            return hex;
-        }
-
-        if (!int.TryParse(hex.AsSpan(1, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var r) ||
-            !int.TryParse(hex.AsSpan(3, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var g) ||
-            !int.TryParse(hex.AsSpan(5, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b))
-        {
-            return hex;
-        }
-
-        return $"#{Math.Max((int)(r * 0.78), 0):X2}{Math.Max((int)(g * 0.78), 0):X2}{Math.Max((int)(b * 0.78), 0):X2}";
-    }
+    private static string Fmt(double value) => ChartFormat.Fmt(value);
 
     private AxisScale BuildValueScale(IReadOnlyList<TItem> items)
     {
         var values = items
             .SelectMany(item => (SegmentsSelectorOrThrow(item) ?? Array.Empty<TSegment>())
                 .Select(SegmentValueSelectorOrThrow)
-                .Select(SanitizeValue));
+                .Select(ChartValues.Sanitize));
         var (pixelStart, pixelEnd) = Horizontal
             ? (ChartAreaLeft, ChartAreaRight)
             : (ChartAreaBottom, ChartAreaTop);

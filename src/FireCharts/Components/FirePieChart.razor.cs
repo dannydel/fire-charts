@@ -73,7 +73,7 @@ public partial class FirePieChart<TItem> : ComponentBase
     private double TotalValue =>
         (Items ?? Array.Empty<TItem>())
             .Select(ValueSelectorOrThrow)
-            .Select(SanitizeValue)
+            .Select(ChartValues.Sanitize)
             .DefaultIfEmpty(0)
             .Sum();
 
@@ -92,7 +92,7 @@ public partial class FirePieChart<TItem> : ComponentBase
     private void RebuildPoints()
     {
         var items = Items ?? Array.Empty<TItem>();
-        var totalValue = items.Select(ValueSelectorOrThrow).Select(SanitizeValue).Sum();
+        var totalValue = items.Select(ValueSelectorOrThrow).Select(ChartValues.Sanitize).Sum();
         var comparer = EqualityComparer<TItem>.Default;
         var selectedItem = SelectedItem;
         var startAngle = -Math.PI / 2;
@@ -102,7 +102,7 @@ public partial class FirePieChart<TItem> : ComponentBase
         for (var i = 0; i < items.Count; i++)
         {
             var item = items[i];
-            var value = SanitizeValue(ValueSelectorOrThrow(item));
+            var value = ChartValues.Sanitize(ValueSelectorOrThrow(item));
             if (value <= 0 || totalValue <= 0)
             {
                 continue;
@@ -130,7 +130,7 @@ public partial class FirePieChart<TItem> : ComponentBase
                 value,
                 percentage,
                 fill,
-                HoverColorSelector?.Invoke(item) ?? Darken(fill),
+                HoverColorSelector?.Invoke(item) ?? ChartColor.Darken(fill),
                 path,
                 new SvgPoint(labelPoint.X + offset.X, labelPoint.Y + offset.Y),
                 new SvgPoint(tooltipPoint.X + offset.X, tooltipPoint.Y + offset.Y),
@@ -307,27 +307,7 @@ public partial class FirePieChart<TItem> : ComponentBase
 
     private string LabelSelectorOrThrow(TItem item) => LabelSelector!(item);
 
-    private static double SanitizeValue(double value) =>
-        double.IsFinite(value) ? Math.Max(value, 0) : 0;
-
-    private static string Fmt(double value) =>
-        double.IsFinite(value)
-            ? value.ToString("F1", CultureInfo.InvariantCulture)
-            : "0.0";
-
-    private static string Darken(string hex)
-    {
-        if (hex.Length != 7 || !hex.StartsWith('#'))
-        {
-            return "#8f2f1a";
-        }
-
-        var r = Convert.ToInt32(hex[1..3], 16);
-        var g = Convert.ToInt32(hex[3..5], 16);
-        var b = Convert.ToInt32(hex[5..7], 16);
-
-        return $"#{Math.Max(r - 28, 0):X2}{Math.Max(g - 28, 0):X2}{Math.Max(b - 28, 0):X2}";
-    }
+    private static string Fmt(double value) => ChartFormat.Fmt(value);
 
     private static bool UseDarkText(string hex)
     {
