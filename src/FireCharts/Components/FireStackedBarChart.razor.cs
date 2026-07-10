@@ -1,5 +1,6 @@
 using FireCharts.Interaction;
 using FireCharts.Models;
+using FireCharts.Scales;
 using Microsoft.AspNetCore.Components;
 using System.Collections.ObjectModel;
 using System.Globalization;
@@ -22,11 +23,11 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
     private IReadOnlyList<BarState> _bars = Array.Empty<BarState>();
     private IReadOnlyList<LegendItem> _legendItems = Array.Empty<LegendItem>();
     private Dictionary<string, int> _segmentIndexByKey = [];
-    private ChartInteraction<StackedBarChartSegment<TItem, TSegment>, int> _interaction = default!;
+    private IReadOnlyList<ScaleTick> _valueAxisTicks = Array.Empty<ScaleTick>();
     private double _computedMaxValue = 100;
     private int? _hoveredBarIndex;
-    private double? _renderWidth;
-    private double? _renderHeight;
+    private PlotArea _plot;
+    private ChartInteraction<StackedBarChartSegment<TItem, TSegment>, int> _interaction = default!;
     private string? _hoveredLegendLabel;
 
     [Parameter] public string Title { get; set; } = "Stacked Bar Chart";
@@ -63,24 +64,17 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
     [Parameter] public ChartLegendPlacement LegendPlacement { get; set; } = ChartLegendPlacement.Bottom;
     [Parameter] public BarTooltipInteractionMode TooltipInteractionMode { get; set; } = BarTooltipInteractionMode.Shared;
 
-    private double PaddingTop => 10;
-    private double PaddingRight => 10;
-    private double PaddingBottom => ShowAxisLabels ? 40 : 10;
-    private double PaddingLeft => ShowAxisLabels ? (Horizontal ? 90 : 50) : 10;
+    private ChartPadding Padding => new(
+        Top: 10,
+        Right: 10,
+        Bottom: ShowAxisLabels ? 40 : 10,
+        Left: ShowAxisLabels ? (Horizontal ? 90 : 50) : 10);
 
     internal IReadOnlyList<StackedBarChartSegment<TItem, TSegment>> Segments => _segments;
     internal IReadOnlyList<BarState> Bars => _bars;
     internal IReadOnlyList<LegendItem> LegendItems => _legendItems;
     internal StackedBarChartSegment<TItem, TSegment>? HoveredSegment => _interaction.Hovered;
     internal bool UsesSharedTooltip => TooltipInteractionMode == BarTooltipInteractionMode.Shared;
-    internal double SafeWidth => Math.Max(_renderWidth ?? Width, 1);
-    internal double SafeHeight => Math.Max(_renderHeight ?? Height, 1);
-    internal double ChartAreaLeft => PaddingLeft;
-    internal double ChartAreaTop => PaddingTop;
-    internal double ChartAreaRight => SafeWidth - PaddingRight;
-    internal double ChartAreaBottom => SafeHeight - PaddingBottom;
-    internal double ChartAreaWidth => Math.Max(ChartAreaRight - ChartAreaLeft, 1);
-    internal double ChartAreaHeight => Math.Max(ChartAreaBottom - ChartAreaTop, 1);
     internal int SafeGridLineCount => Math.Max(GridLineCount, 1);
     internal bool HasLegendHover => !string.IsNullOrWhiteSpace(_hoveredLegendLabel);
     internal bool ShouldRenderLegendBeforeChart => LegendPlacement is ChartLegendPlacement.Top or ChartLegendPlacement.Left or ChartLegendPlacement.Start;
@@ -116,19 +110,13 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
             : CreateSharedTooltipContext(TooltipBar);
     internal StackedBarChartContext<TItem, TSegment> ChartContext =>
         new(
-            SafeWidth,
-            SafeHeight,
-            ChartAreaLeft,
-            ChartAreaTop,
-            ChartAreaRight,
-            ChartAreaBottom,
-            ChartAreaWidth,
-            ChartAreaHeight,
+            _plot,
             Horizontal,
             ComputedMaxValue,
             Segments);
 
     internal double ComputedMaxValue => _computedMaxValue;
+    internal IReadOnlyList<ScaleTick> ValueAxisTicks => _valueAxisTicks;
 
     protected override void OnInitialized()
     {
@@ -157,8 +145,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 
         Width = Math.Max(Width, 1);
         Height = Math.Max(Height, 1);
-        _renderWidth ??= Width;
-        _renderHeight ??= Height;
+        _plot = PlotArea.FromInset(Width, Height, Padding);
         RebuildChartState();
     }
 
@@ -167,7 +154,8 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
         var items = Items ?? Array.Empty<TItem>();
         var comparer = EqualityComparer<TItem>.Default;
         var selectedItem = SelectedItem;
-        var maxValue = ResolveComputedMaxValue(items);
+        var scale = BuildValueScale(items);
+        var maxValue = scale.Max;
         var safeBarWidthRatio = Math.Clamp(BarWidthRatio, 0.1, 1.0);
         var bars = new List<BarState>(items.Count);
         var segments = new List<StackedBarChartSegment<TItem, TSegment>>();
@@ -175,6 +163,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
         var legendMap = new Dictionary<string, LegendItem>(StringComparer.Ordinal);
 
         _computedMaxValue = maxValue;
+        _valueAxisTicks = scale.Ticks;
 
         for (var barIndex = 0; barIndex < items.Count; barIndex++)
         {
@@ -187,7 +176,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 
             for (var segmentIndex = 0; segmentIndex < itemSegments.Count; segmentIndex++)
             {
-                var value = SanitizeValue(SegmentValueSelectorOrThrow(itemSegments[segmentIndex]));
+                var value = ChartValues.Sanitize(SegmentValueSelectorOrThrow(itemSegments[segmentIndex]));
                 sanitizedValues[segmentIndex] = value;
                 totalValue += value;
             }
@@ -205,7 +194,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
                 var fill = legendMap.TryGetValue(segmentLabel, out var existingLegendItem)
                     ? existingLegendItem.Fill
                     : SegmentColorSelector?.Invoke(segment) ?? DefaultPalette[legendMap.Count % DefaultPalette.Length];
-                var hoverFill = SegmentHoverColorSelector?.Invoke(segment) ?? Darken(fill);
+                var hoverFill = SegmentHoverColorSelector?.Invoke(segment) ?? ChartColor.DarkenByFactor(fill);
 
                 if (!legendMap.ContainsKey(segmentLabel))
                 {
@@ -249,8 +238,8 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
                 barRect,
                 hoverRect,
                 Horizontal
-                    ? new SvgPoint(ChartAreaLeft - 8, barRect.Y + barRect.Height / 2)
-                    : new SvgPoint(barRect.X + barRect.Width / 2, ChartAreaBottom + 20),
+                    ? new SvgPoint(_plot.Left - 8, barRect.Y + barRect.Height / 2)
+                    : new SvgPoint(barRect.X + barRect.Width / 2, _plot.Bottom + 20),
                 new ReadOnlyCollection<StackedBarChartSegment<TItem, TSegment>>(barSegments)));
         }
 
@@ -280,12 +269,12 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 
         if (Horizontal)
         {
-            var step = ChartAreaHeight / itemCount;
-            return new SvgRect(ChartAreaLeft, ChartAreaTop + barIndex * step, ChartAreaWidth, step);
+            var step = _plot.Height / itemCount;
+            return new SvgRect(_plot.Left, _plot.Top + barIndex * step, _plot.Width, step);
         }
 
-        var widthStep = ChartAreaWidth / itemCount;
-        return new SvgRect(ChartAreaLeft + barIndex * widthStep, ChartAreaTop, widthStep, ChartAreaHeight);
+        var widthStep = _plot.Width / itemCount;
+        return new SvgRect(_plot.Left + barIndex * widthStep, _plot.Top, widthStep, _plot.Height);
     }
 
     private SvgRect GetBarBounds(int barIndex, int itemCount, double safeBarWidthRatio)
@@ -297,16 +286,16 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 
         if (Horizontal)
         {
-            var step = ChartAreaHeight / itemCount;
+            var step = _plot.Height / itemCount;
             var barHeight = Math.Max(step * safeBarWidthRatio, 1);
-            var y = ChartAreaTop + barIndex * step + (step - barHeight) / 2;
-            return new SvgRect(ChartAreaLeft, y, ChartAreaWidth, barHeight);
+            var y = _plot.Top + barIndex * step + (step - barHeight) / 2;
+            return new SvgRect(_plot.Left, y, _plot.Width, barHeight);
         }
 
-        var widthStep = ChartAreaWidth / itemCount;
+        var widthStep = _plot.Width / itemCount;
         var barWidth = Math.Max(widthStep * safeBarWidthRatio, 1);
-        var x = ChartAreaLeft + barIndex * widthStep + (widthStep - barWidth) / 2;
-        return new SvgRect(x, ChartAreaTop, barWidth, ChartAreaHeight);
+        var x = _plot.Left + barIndex * widthStep + (widthStep - barWidth) / 2;
+        return new SvgRect(x, _plot.Top, barWidth, _plot.Height);
     }
 
     private SvgRect GetSegmentRect(SvgRect barRect, double runningOffset, double value, double maxValue)
@@ -318,29 +307,22 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 
         if (Horizontal)
         {
-            var width = Math.Max(scale * ChartAreaWidth, 0);
-            var x = ChartAreaLeft + offsetScale * ChartAreaWidth;
+            var width = Math.Max(scale * _plot.Width, 0);
+            var x = _plot.Left + offsetScale * _plot.Width;
             return new SvgRect(x, barRect.Y, width, barRect.Height);
         }
 
-        var height = Math.Max(scale * ChartAreaHeight, 0);
-        var topOffset = offsetScale * ChartAreaHeight;
-        var y = ChartAreaBottom - topOffset - height;
+        var height = Math.Max(scale * _plot.Height, 0);
+        var topOffset = offsetScale * _plot.Height;
+        var y = _plot.Bottom - topOffset - height;
         return new SvgRect(barRect.X, y, barRect.Width, height);
     }
 
-    private void UpdateSurfaceSize(ChartSurfaceContext surface)
+    private Task OnPlotAreaChanged(PlotArea plot)
     {
-        var widthChanged = Math.Abs((_renderWidth ?? 0) - surface.Width) > 0.5;
-        var heightChanged = Math.Abs((_renderHeight ?? 0) - surface.Height) > 0.5;
-        if (!widthChanged && !heightChanged)
-        {
-            return;
-        }
-
-        _renderWidth = surface.Width;
-        _renderHeight = surface.Height;
+        _plot = plot;
         RebuildChartState();
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -488,7 +470,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
         {
             var right = bar.Segments.Max(segment => segment.Rect.X + segment.Rect.Width);
             var centerY = bar.HoverRect.Y + bar.HoverRect.Height / 2;
-            return new SvgPoint(Math.Min(right + 12, ChartAreaRight - 8), centerY);
+            return new SvgPoint(Math.Min(right + 12, _plot.Right - 8), centerY);
         }
 
         if (ConstrainTooltipToChartBounds)
@@ -502,7 +484,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
             var right = bar.HoverRect.X + bar.HoverRect.Width;
             var cornerTop = bar.Segments.Min(segment => segment.Rect.Y);
             return new SvgPoint(
-                Math.Min(right, ChartAreaRight - 8),
+                Math.Min(right, _plot.Right - 8),
                 Math.Max(cornerTop + 12, 8));
         }
 
@@ -591,81 +573,25 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 
     private string SegmentLabelSelectorOrThrow(TSegment segment) => SegmentLabelSelector!(segment);
 
-    private static double SanitizeValue(double value) =>
-        double.IsFinite(value) ? Math.Max(value, 0) : 0;
+    private static string Fmt(double value) => ChartFormat.Fmt(value);
 
-    private static string Fmt(double value) =>
-        double.IsFinite(value)
-            ? value.ToString("F1", CultureInfo.InvariantCulture)
-            : "0.0";
-
-    private static double GetNiceMax(double max)
+    private AxisScale BuildValueScale(IReadOnlyList<TItem> items)
     {
-        if (max <= 0 || !double.IsFinite(max))
+        var totals = items.Select(item => (SegmentsSelectorOrThrow(item) ?? Array.Empty<TSegment>())
+            .Select(SegmentValueSelectorOrThrow)
+            .Select(ChartValues.Sanitize)
+            .Sum());
+        var (pixelStart, pixelEnd) = Horizontal
+            ? (_plot.Left, _plot.Right)
+            : (_plot.Bottom, _plot.Top);
+
+        return AxisScale.FromValues(totals, pixelStart, pixelEnd, new AxisScaleOptions
         {
-            return 100;
-        }
-
-        var log = Math.Log10(max);
-        if (!double.IsFinite(log))
-        {
-            return 100;
-        }
-
-        var magnitude = Math.Pow(10, Math.Floor(log));
-        if (magnitude <= 0 || !double.IsFinite(magnitude))
-        {
-            return 100;
-        }
-
-        var normalized = max / magnitude;
-
-        double nice;
-        if (normalized <= 1) nice = 1;
-        else if (normalized <= 1.5) nice = 1.5;
-        else if (normalized <= 2) nice = 2;
-        else if (normalized <= 3) nice = 3;
-        else if (normalized <= 5) nice = 5;
-        else if (normalized <= 7.5) nice = 7.5;
-        else nice = 10;
-
-        var result = nice * magnitude;
-        return double.IsFinite(result) && result > 0 ? result : 100;
-    }
-
-    private static string Darken(string hex)
-    {
-        if (hex.Length != 7 || !hex.StartsWith('#'))
-        {
-            return hex;
-        }
-
-        if (!int.TryParse(hex.AsSpan(1, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var r) ||
-            !int.TryParse(hex.AsSpan(3, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var g) ||
-            !int.TryParse(hex.AsSpan(5, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b))
-        {
-            return hex;
-        }
-
-        return $"#{Math.Max((int)(r * 0.78), 0):X2}{Math.Max((int)(g * 0.78), 0):X2}{Math.Max((int)(b * 0.78), 0):X2}";
-    }
-
-    private double ResolveComputedMaxValue(IReadOnlyList<TItem> items)
-    {
-        if (MaxValue.HasValue && MaxValue.Value > 0 && double.IsFinite(MaxValue.Value))
-        {
-            return MaxValue.Value;
-        }
-
-        var max = items
-            .Select(item => (SegmentsSelectorOrThrow(item) ?? Array.Empty<TSegment>())
-                .Select(SegmentValueSelectorOrThrow)
-                .Select(SanitizeValue)
-                .Sum())
-            .DefaultIfEmpty(0)
-            .Max();
-
-        return GetNiceMax(max);
+            TickCount = SafeGridLineCount,
+            Baseline = AxisBaseline.IncludeZero,
+            ForcedMax = MaxValue is > 0 && double.IsFinite(MaxValue.Value) ? MaxValue : null,
+            EmptyFallbackMax = 100
+        });
     }
 
     internal sealed record BarState(

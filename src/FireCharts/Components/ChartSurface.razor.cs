@@ -17,6 +17,8 @@ public partial class ChartSurface : ComponentBase, IAsyncDisposable
     private IJSObjectReference? _observer;
     private ElementReference _hostElement;
     private double? _observedWidth;
+    private PlotArea _lastPlotArea;
+    private bool _hasDispatchedPlotArea;
 
     [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
 
@@ -27,10 +29,12 @@ public partial class ChartSurface : ComponentBase, IAsyncDisposable
     [Parameter] public bool Responsive { get; set; }
     [Parameter] public string HostCssClass { get; set; } = "";
     [Parameter] public string SvgCssClass { get; set; } = "";
-    [Parameter] public RenderFragment<ChartSurfaceContext>? ChildContent { get; set; }
+    [Parameter] public ChartPadding Padding { get; set; } = ChartPadding.Zero;
+    [Parameter] public EventCallback<PlotArea> OnPlotAreaChanged { get; set; }
+    [Parameter] public RenderFragment<PlotArea>? ChildContent { get; set; }
     [Parameter] public RenderFragment? OverlayContent { get; set; }
 
-    internal ChartSurfaceContext Context => new(ResolvedWidth, ResolvedHeight);
+    internal PlotArea PlotArea => PlotArea.FromInset(ResolvedWidth, ResolvedHeight, Padding);
     internal ElementReference HostElement => _hostElement;
 
     internal double ResolvedWidth =>
@@ -39,6 +43,28 @@ public partial class ChartSurface : ComponentBase, IAsyncDisposable
     internal double ResolvedHeight => Math.Max(Height, DefaultMinHeight);
 
     private string HostStyle => Responsive ? "width: 100%;" : $"width: {Fmt(ResolvedWidth)}px;";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await DispatchPlotAreaIfChangedAsync();
+    }
+
+    private async Task DispatchPlotAreaIfChangedAsync()
+    {
+        var plot = PlotArea;
+        if (_hasDispatchedPlotArea && plot == _lastPlotArea)
+        {
+            return;
+        }
+
+        _lastPlotArea = plot;
+        _hasDispatchedPlotArea = true;
+
+        if (OnPlotAreaChanged.HasDelegate)
+        {
+            await OnPlotAreaChanged.InvokeAsync(plot);
+        }
+    }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -59,16 +85,20 @@ public partial class ChartSurface : ComponentBase, IAsyncDisposable
     }
 
     [JSInvokable]
-    public Task OnContainerWidthChanged(double width)
+    public async Task OnContainerWidthChanged(double width)
     {
         var clampedWidth = Math.Max(width, DefaultMinWidth);
         if (Math.Abs(clampedWidth - (_observedWidth ?? 0)) < 0.5)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         _observedWidth = clampedWidth;
-        return InvokeAsync(StateHasChanged);
+        await InvokeAsync(async () =>
+        {
+            await DispatchPlotAreaIfChangedAsync();
+            StateHasChanged();
+        });
     }
 
     public async ValueTask DisposeAsync()
@@ -99,8 +129,5 @@ public partial class ChartSurface : ComponentBase, IAsyncDisposable
         _dotNetRef?.Dispose();
     }
 
-    private static string Fmt(double value) =>
-        double.IsFinite(value)
-            ? value.ToString("F1", CultureInfo.InvariantCulture)
-            : "0.0";
+    private static string Fmt(double value) => ChartFormat.Fmt(value);
 }

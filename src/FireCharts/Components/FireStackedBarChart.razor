@@ -17,12 +17,10 @@
                   Height="@Height"
                   Responsive="@Responsive"
                   HostCssClass="fire-stacked-bar-chart-host"
-                  SvgCssClass="fire-stacked-bar-chart">
-        <ChildContent Context="surface">
-            @{
-                UpdateSurfaceSize(surface);
-            }
-
+                  SvgCssClass="fire-stacked-bar-chart"
+                  Padding="@Padding"
+                  OnPlotAreaChanged="OnPlotAreaChanged">
+        <ChildContent>
             @if (Segments.Count == 0)
             {
                 @if (EmptyStateTemplate is not null)
@@ -31,8 +29,8 @@
                 }
                 else
                 {
-                    <SvgText X="@(surface.Width / 2)"
-                             Y="@(surface.Height / 2)"
+                    <SvgText X="@(_plot.SurfaceWidth / 2)"
+                             Y="@(_plot.SurfaceHeight / 2)"
                              TextAnchor="middle"
                              CssClass="empty-state"
                              Content="No data" />
@@ -43,26 +41,22 @@
                 @if (ShowGridLines)
                 {
                     <g class="grid-lines">
-                        @for (var i = 0; i <= SafeGridLineCount; i++)
+                        @foreach (var tick in ValueAxisTicks)
                         {
-                            var fraction = (double)i / SafeGridLineCount;
-
                             if (Horizontal)
                             {
-                                var x = ChartAreaLeft + fraction * ChartAreaWidth;
-                                <line x1="@Fmt(x)"
-                                      y1="@Fmt(ChartAreaTop)"
-                                      x2="@Fmt(x)"
-                                      y2="@Fmt(ChartAreaBottom)"
+                                <line x1="@Fmt(tick.Pixel)"
+                                      y1="@Fmt(_plot.Top)"
+                                      x2="@Fmt(tick.Pixel)"
+                                      y2="@Fmt(_plot.Bottom)"
                                       class="grid-line" />
                             }
                             else
                             {
-                                var y = ChartAreaBottom - fraction * ChartAreaHeight;
-                                <line x1="@Fmt(ChartAreaLeft)"
-                                      y1="@Fmt(y)"
-                                      x2="@Fmt(ChartAreaRight)"
-                                      y2="@Fmt(y)"
+                                <line x1="@Fmt(_plot.Left)"
+                                      y1="@Fmt(tick.Pixel)"
+                                      x2="@Fmt(_plot.Right)"
+                                      y2="@Fmt(tick.Pixel)"
                                       class="grid-line" />
                             }
                         }
@@ -70,40 +64,35 @@
                 }
 
                 <g class="axes">
-                    <line x1="@Fmt(ChartAreaLeft)" y1="@Fmt(ChartAreaTop)"
-                          x2="@Fmt(ChartAreaLeft)" y2="@Fmt(ChartAreaBottom)"
+                    <line x1="@Fmt(_plot.Left)" y1="@Fmt(_plot.Top)"
+                          x2="@Fmt(_plot.Left)" y2="@Fmt(_plot.Bottom)"
                           class="axis-line" />
-                    <line x1="@Fmt(ChartAreaLeft)" y1="@Fmt(ChartAreaBottom)"
-                          x2="@Fmt(ChartAreaRight)" y2="@Fmt(ChartAreaBottom)"
+                    <line x1="@Fmt(_plot.Left)" y1="@Fmt(_plot.Bottom)"
+                          x2="@Fmt(_plot.Right)" y2="@Fmt(_plot.Bottom)"
                           class="axis-line" />
                 </g>
 
                 @if (ShowAxisLabels)
                 {
                     <g class="value-axis-labels">
-                        @for (var i = 0; i <= SafeGridLineCount; i++)
+                        @foreach (var tick in ValueAxisTicks)
                         {
-                            var fraction = (double)i / SafeGridLineCount;
-                            var value = ComputedMaxValue * fraction;
-
                             if (Horizontal)
                             {
-                                var x = ChartAreaLeft + fraction * ChartAreaWidth;
-                                <SvgText X="@x"
-                                         Y="@(ChartAreaBottom + 20)"
+                                <SvgText X="@tick.Pixel"
+                                         Y="@(_plot.Bottom + 20)"
                                          CssClass="axis-label"
                                          TextAnchor="middle"
-                                         Content="@value.ToString(ValueFormat, CultureInfo.InvariantCulture)" />
+                                         Content="@tick.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)" />
                             }
                             else
                             {
-                                var y = ChartAreaBottom - fraction * ChartAreaHeight;
-                                <SvgText X="@(ChartAreaLeft - 8)"
-                                         Y="@y"
+                                <SvgText X="@(_plot.Left - 8)"
+                                         Y="@tick.Pixel"
                                          CssClass="axis-label"
                                          TextAnchor="end"
                                          DominantBaseline="middle"
-                                         Content="@value.ToString(ValueFormat, CultureInfo.InvariantCulture)" />
+                                         Content="@tick.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)" />
                             }
                         }
                     </g>
@@ -113,7 +102,7 @@
                         {
                             if (Horizontal)
                             {
-                                <SvgText X="@(ChartAreaLeft - 8)"
+                                <SvgText X="@(_plot.Left - 8)"
                                          Y="@(bar.AxisLabelPoint.Y)"
                                          CssClass="axis-label"
                                          TextAnchor="end"
@@ -123,7 +112,7 @@
                             else
                             {
                                 <SvgText X="@(bar.AxisLabelPoint.X)"
-                                         Y="@(ChartAreaBottom + 20)"
+                                         Y="@(_plot.Bottom + 20)"
                                          CssClass="axis-label"
                                          TextAnchor="middle"
                                          Content="@bar.Label" />

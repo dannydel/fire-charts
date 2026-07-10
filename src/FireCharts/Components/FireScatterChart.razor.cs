@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using FireCharts.Interaction;
 using FireCharts.Models;
+using FireCharts.Scales;
 using Microsoft.AspNetCore.Components;
 
 namespace FireCharts.Components;
@@ -39,8 +40,7 @@ public partial class FireScatterChart<TItem> : ComponentBase
     private IReadOnlyList<AxisTick> _yTicks = Array.Empty<AxisTick>();
     private ChartInteraction<ScatterChartPoint<TItem>, PointKey> _interaction = default!;
     private int? _legendSeriesIndex;
-    private double? _renderWidth;
-    private double? _renderHeight;
+    private PlotArea _plot;
     private LineChartXValueKind _xAxisKind = LineChartXValueKind.Number;
 
     [Parameter] public string Title { get; set; } = "Scatter Chart";
@@ -74,23 +74,16 @@ public partial class FireScatterChart<TItem> : ComponentBase
     [Parameter] public string ValueFormat { get; set; } = "F0";
     [Parameter] public double MarkerRadius { get; set; } = 4.8;
 
-    private double PaddingTop => 18;
-    private double PaddingRight => 18;
-    private double PaddingBottom => ShowAxisLabels ? 48 : 18;
-    private double PaddingLeft => ShowAxisLabels ? 64 : 18;
+    private ChartPadding Padding => new(
+        Top: 18,
+        Right: 18,
+        Bottom: ShowAxisLabels ? 48 : 18,
+        Left: ShowAxisLabels ? 64 : 18);
 
     private IReadOnlyList<RenderedSeries> SeriesStates => _seriesStates;
     private IReadOnlyList<AxisTick> XTicks => _xTicks;
     private IReadOnlyList<AxisTick> YTicks => _yTicks;
     private ScatterChartPoint<TItem>? HoveredPoint => _interaction.Hovered;
-    private double SafeWidth => Math.Max(_renderWidth ?? Width, 1);
-    private double SafeHeight => Math.Max(_renderHeight ?? Height, 1);
-    private double ChartAreaLeft => PaddingLeft;
-    private double ChartAreaTop => PaddingTop;
-    private double ChartAreaRight => SafeWidth - PaddingRight;
-    private double ChartAreaBottom => SafeHeight - PaddingBottom;
-    private double ChartAreaWidth => Math.Max(ChartAreaRight - ChartAreaLeft, 1);
-    private double ChartAreaHeight => Math.Max(ChartAreaBottom - ChartAreaTop, 1);
     private int SafeXAxisTickCount => Math.Max(XAxisTickCount, 2);
     private int SafeYAxisTickCount => Math.Max(YAxisTickCount, 2);
     private double SafeMarkerRadius => Math.Clamp(MarkerRadius, 2.5, 12);
@@ -123,8 +116,7 @@ public partial class FireScatterChart<TItem> : ComponentBase
 
         Width = Math.Max(Width, 1);
         Height = Math.Max(Height, 1);
-        _renderWidth ??= Width;
-        _renderHeight ??= Height;
+        _plot = PlotArea.FromInset(Width, Height, Padding);
 
         RebuildChart();
     }
@@ -145,10 +137,12 @@ public partial class FireScatterChart<TItem> : ComponentBase
 
         var allPoints = rawSeries.SelectMany(series => series).ToList();
         var xDomain = GetXDomain(allPoints);
-        var yScale = GetYScale(allPoints.Select(point => point.Y).ToList(), SafeYAxisTickCount);
+        var yScale = AxisScale.FromValues(allPoints.Select(point => point.Y), SafeYAxisTickCount, _plot.Bottom, _plot.Top);
 
         _xTicks = BuildXTicks(allPoints, xDomain.Min, xDomain.Max);
-        _yTicks = BuildYTicks(yScale.Min, yScale.Max);
+        _yTicks = yScale.Ticks
+            .Select(tick => new AxisTick(tick.Value, tick.Value.ToString(ValueFormat, CultureInfo.InvariantCulture), tick.Pixel))
+            .ToArray();
 
         var states = new List<RenderedSeries>(rawSeries.Count);
 
@@ -167,7 +161,7 @@ public partial class FireScatterChart<TItem> : ComponentBase
                     point.Y,
                     new SvgPoint(
                         MapX(point.X.NumericValue, xDomain.Min, xDomain.Max),
-                        MapY(point.Y, yScale.Min, yScale.Max)),
+                        yScale.ToPixel(point.Y)),
                     point.Fill,
                     point.HoverFill,
                     point.Radius,
@@ -206,7 +200,7 @@ public partial class FireScatterChart<TItem> : ComponentBase
                     string.IsNullOrWhiteSpace(definition.Name) ? $"Series {i + 1}" : definition.Name,
                     definition.Items ?? Array.Empty<TItem>(),
                     fill,
-                    definition.HoverColor ?? Darken(fill),
+                    definition.HoverColor ?? ChartColor.Darken(fill),
                     Math.Clamp(definition.MarkerRadius ?? SafeMarkerRadius, 2.5, 12)));
             }
 
@@ -258,7 +252,7 @@ public partial class FireScatterChart<TItem> : ComponentBase
                     : ColorSelector?.Invoke(item) ?? series.Fill;
                 var hoverFill = HasSeriesDefinitions
                     ? series.HoverFill
-                    : HoverColorSelector?.Invoke(item) ?? Darken(fill);
+                    : HoverColorSelector?.Invoke(item) ?? ChartColor.Darken(fill);
                 var label = LabelSelector?.Invoke(item) ?? FormatXValue(x);
                 var accessibleText = TooltipTextSelector?.Invoke(item)
                     ?? $"{series.Name} {label}: {y.ToString(ValueFormat, CultureInfo.InvariantCulture)}";
@@ -293,18 +287,11 @@ public partial class FireScatterChart<TItem> : ComponentBase
         return rawSeries;
     }
 
-    private void UpdateSurfaceSize(ChartSurfaceContext surface)
+    private Task OnPlotAreaChanged(PlotArea plot)
     {
-        var widthChanged = Math.Abs((_renderWidth ?? 0) - surface.Width) > 0.5;
-        var heightChanged = Math.Abs((_renderHeight ?? 0) - surface.Height) > 0.5;
-        if (!widthChanged && !heightChanged)
-        {
-            return;
-        }
-
-        _renderWidth = surface.Width;
-        _renderHeight = surface.Height;
+        _plot = plot;
         RebuildChart();
+        return Task.CompletedTask;
     }
 
     private void HandleLegendEnter(int seriesIndex)
@@ -337,41 +324,6 @@ public partial class FireScatterChart<TItem> : ComponentBase
         return (min, max);
     }
 
-    private static (double Min, double Max, double Step) GetYScale(IReadOnlyList<double> values, int tickCount)
-    {
-        var min = values.Min();
-        var max = values.Max();
-
-        if (min >= 0)
-        {
-            min = 0;
-        }
-
-        if (max <= 0)
-        {
-            max = 0;
-        }
-
-        if (Math.Abs(max - min) < 0.000001)
-        {
-            var padding = Math.Max(Math.Abs(max) * 0.2, 1d);
-            min -= padding;
-            max += padding;
-
-            if (max <= 0)
-            {
-                max = 0;
-            }
-
-            if (min >= 0)
-            {
-                min = 0;
-            }
-        }
-
-        return GetNiceScale(min, max, tickCount);
-    }
-
     private IReadOnlyList<AxisTick> BuildXTicks(IReadOnlyList<RawPoint> points, double min, double max)
     {
         if (_xAxisKind == LineChartXValueKind.DateTime)
@@ -400,87 +352,20 @@ public partial class FireScatterChart<TItem> : ComponentBase
                 .ToList());
         }
 
-        var scale = GetNiceScale(min, max, SafeXAxisTickCount);
-        return BuildTicks(scale.Min, scale.Max, scale.Step, FormatNumber, value => MapX(value, scale.Min, scale.Max));
-    }
-
-    private IReadOnlyList<AxisTick> BuildYTicks(double min, double max)
-    {
-        var scale = GetNiceScale(min, max, SafeYAxisTickCount);
-        return BuildTicks(scale.Min, scale.Max, scale.Step, value => value.ToString(ValueFormat, CultureInfo.InvariantCulture), value => MapY(value, scale.Min, scale.Max));
-    }
-
-    private static ReadOnlyCollection<AxisTick> BuildTicks(
-        double min,
-        double max,
-        double step,
-        Func<double, string> labelFactory,
-        Func<double, double> positionFactory)
-    {
-        var ticks = new List<AxisTick>();
-        var value = min;
-        var guard = 0;
-
-        while (value <= max + (step * 0.5) && guard < 100)
-        {
-            var normalized = NormalizeZero(value);
-            ticks.Add(new AxisTick(normalized, labelFactory(normalized), positionFactory(normalized)));
-            value += step;
-            guard++;
-        }
-
-        return new ReadOnlyCollection<AxisTick>(ticks);
-    }
-
-    private static (double Min, double Max, double Step) GetNiceScale(double min, double max, int tickCount)
-    {
-        var safeTickCount = Math.Max(tickCount, 2);
-        var range = NiceNumber(max - min, false);
-        var step = NiceNumber(range / (safeTickCount - 1), true);
-        var niceMin = Math.Floor(min / step) * step;
-        var niceMax = Math.Ceiling(max / step) * step;
-        return (niceMin, niceMax, step);
-    }
-
-    private static double NiceNumber(double range, bool round)
-    {
-        if (range <= 0 || !double.IsFinite(range))
-        {
-            return 1;
-        }
-
-        var exponent = Math.Floor(Math.Log10(range));
-        var fraction = range / Math.Pow(10, exponent);
-        double niceFraction;
-
-        if (round)
-        {
-            if (fraction < 1.5) niceFraction = 1;
-            else if (fraction < 3) niceFraction = 2;
-            else if (fraction < 7) niceFraction = 5;
-            else niceFraction = 10;
-        }
-        else
-        {
-            if (fraction <= 1) niceFraction = 1;
-            else if (fraction <= 2) niceFraction = 2;
-            else if (fraction <= 5) niceFraction = 5;
-            else niceFraction = 10;
-        }
-
-        return niceFraction * Math.Pow(10, exponent);
+        var scale = AxisScale.FromValues(
+            new[] { min, max },
+            _plot.Left,
+            _plot.Right,
+            new AxisScaleOptions { TickCount = SafeXAxisTickCount, Baseline = AxisBaseline.DataExtent });
+        return scale.Ticks
+            .Select(tick => new AxisTick(tick.Value, FormatNumber(tick.Value), tick.Pixel))
+            .ToList();
     }
 
     private double MapX(double value, double min, double max)
     {
         var ratio = (value - min) / Math.Max(max - min, 0.000001);
-        return ChartAreaLeft + (Math.Clamp(ratio, 0, 1) * ChartAreaWidth);
-    }
-
-    private double MapY(double value, double min, double max)
-    {
-        var ratio = (value - min) / Math.Max(max - min, 0.000001);
-        return ChartAreaBottom - (Math.Clamp(ratio, 0, 1) * ChartAreaHeight);
+        return _plot.Left + (Math.Clamp(ratio, 0, 1) * _plot.Width);
     }
 
     private string GetTooltipStyle(ScatterChartPoint<TItem> point) =>
@@ -576,25 +461,6 @@ public partial class FireScatterChart<TItem> : ComponentBase
         return date.ToString("HH:mm", CultureInfo.InvariantCulture);
     }
 
-    private static string Fmt(double value) =>
-        double.IsFinite(value)
-            ? value.ToString("F1", CultureInfo.InvariantCulture)
-            : "0.0";
+    private static string Fmt(double value) => ChartFormat.Fmt(value);
 
-    private static double NormalizeZero(double value) =>
-        Math.Abs(value) < 0.000001 ? 0 : value;
-
-    private static string Darken(string hex)
-    {
-        if (hex.Length != 7 || !hex.StartsWith('#'))
-        {
-            return "#8f2f1a";
-        }
-
-        var r = Convert.ToInt32(hex[1..3], 16);
-        var g = Convert.ToInt32(hex[3..5], 16);
-        var b = Convert.ToInt32(hex[5..7], 16);
-
-        return $"#{Math.Max(r - 28, 0):X2}{Math.Max(g - 28, 0):X2}{Math.Max(b - 28, 0):X2}";
-    }
 }

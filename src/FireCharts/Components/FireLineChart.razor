@@ -11,12 +11,10 @@
                   Height="@Height"
                   Responsive="@Responsive"
                   HostCssClass="fire-line-chart-host"
-                  SvgCssClass="fire-line-chart">
-        <ChildContent Context="surface">
-            @{
-                UpdateSurfaceSize(surface);
-            }
-
+                  SvgCssClass="fire-line-chart"
+                  Padding="@Padding"
+                  OnPlotAreaChanged="OnPlotAreaChanged">
+        <ChildContent>
             @if (SeriesStates.Count == 0 || SeriesStates.All(series => series.Points.Count == 0))
             {
                 @if (EmptyStateTemplate is not null)
@@ -25,8 +23,8 @@
                 }
                 else
                 {
-                    <SvgText X="@(surface.Width / 2)"
-                             Y="@(surface.Height / 2)"
+                    <SvgText X="@(_plot.SurfaceWidth / 2)"
+                             Y="@(_plot.SurfaceHeight / 2)"
                              TextAnchor="middle"
                              CssClass="empty-state"
                              Content="No data" />
@@ -39,9 +37,9 @@
                     <g class="grid-lines">
                         @foreach (var tick in YTicks)
                         {
-                            <line x1="@Fmt(ChartAreaLeft)"
+                            <line x1="@Fmt(_plot.Left)"
                                   y1="@Fmt(tick.Position)"
-                                  x2="@Fmt(ChartAreaRight)"
+                                  x2="@Fmt(_plot.Right)"
                                   y2="@Fmt(tick.Position)"
                                   class="grid-line" />
                         }
@@ -49,20 +47,20 @@
                         @foreach (var tick in XTicks)
                         {
                             <line x1="@Fmt(tick.Position)"
-                                  y1="@Fmt(ChartAreaTop)"
+                                  y1="@Fmt(_plot.Top)"
                                   x2="@Fmt(tick.Position)"
-                                  y2="@Fmt(ChartAreaBottom)"
+                                  y2="@Fmt(_plot.Bottom)"
                                   class="grid-line" />
                         }
                     </g>
                 }
 
                 <g class="axes">
-                    <line x1="@Fmt(ChartAreaLeft)" y1="@Fmt(ChartAreaTop)"
-                          x2="@Fmt(ChartAreaLeft)" y2="@Fmt(ChartAreaBottom)"
+                    <line x1="@Fmt(_plot.Left)" y1="@Fmt(_plot.Top)"
+                          x2="@Fmt(_plot.Left)" y2="@Fmt(_plot.Bottom)"
                           class="axis-line" />
-                    <line x1="@Fmt(ChartAreaLeft)" y1="@Fmt(ChartAreaBottom)"
-                          x2="@Fmt(ChartAreaRight)" y2="@Fmt(ChartAreaBottom)"
+                    <line x1="@Fmt(_plot.Left)" y1="@Fmt(_plot.Bottom)"
+                          x2="@Fmt(_plot.Right)" y2="@Fmt(_plot.Bottom)"
                           class="axis-line" />
                 </g>
 
@@ -71,7 +69,7 @@
                     <g class="value-axis-labels">
                         @foreach (var tick in YTicks)
                         {
-                            <SvgText X="@(ChartAreaLeft - 10)"
+                            <SvgText X="@(_plot.Left - 10)"
                                      Y="@tick.Position"
                                      CssClass="axis-label"
                                      TextAnchor="end"
@@ -84,7 +82,7 @@
                         @foreach (var tick in XTicks)
                         {
                             <SvgText X="@tick.Position"
-                                     Y="@(ChartAreaBottom + 22)"
+                                     Y="@(_plot.Bottom + 22)"
                                      CssClass="axis-label"
                                      TextAnchor="middle"
                                      Content="@tick.Label" />

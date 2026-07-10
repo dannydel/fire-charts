@@ -19,9 +19,8 @@ public partial class FirePieChart<TItem> : ComponentBase
     ];
 
     private IReadOnlyList<PieChartPoint<TItem>> _points = Array.Empty<PieChartPoint<TItem>>();
+    private PlotArea _plot;
     private ChartInteraction<PieChartPoint<TItem>, int> _interaction = default!;
-    private double? _renderWidth;
-    private double? _renderHeight;
 
     [Parameter] public string Title { get; set; } = "Pie Chart";
     [Parameter] public string Description { get; set; } = "";
@@ -55,12 +54,12 @@ public partial class FirePieChart<TItem> : ComponentBase
     [Parameter] public double ActiveOffset { get; set; } = 10;
     [Parameter] public string? CenterLabelTitle { get; set; }
 
+    private ChartPadding Padding => ChartPadding.Zero;
+
     internal IReadOnlyList<PieChartPoint<TItem>> Points => _points;
+    internal SvgPoint Center => _plot.Center;
+    internal double Radius => _plot.Radius(26, 40);
     internal PieChartPoint<TItem>? HoveredPoint => _interaction.Hovered;
-    internal double SafeWidth => Math.Max(_renderWidth ?? Width, 1);
-    internal double SafeHeight => Math.Max(_renderHeight ?? Height, 1);
-    internal SvgPoint Center => new(SafeWidth / 2, SafeHeight / 2);
-    internal double Radius => Math.Max(Math.Min(SafeWidth, SafeHeight) / 2 - 26, 40);
     internal double InnerRadius => Radius * Math.Clamp(InnerRadiusRatio, 0, 0.75);
     internal bool HasInnerHole => InnerRadius > 0;
     internal double CenterLabelOuterRadius => Math.Max(InnerRadius > 0 ? InnerRadius - 8 : Radius * 0.34, 34);
@@ -72,7 +71,7 @@ public partial class FirePieChart<TItem> : ComponentBase
     private double TotalValue =>
         (Items ?? Array.Empty<TItem>())
             .Select(ValueSelectorOrThrow)
-            .Select(SanitizeValue)
+            .Select(ChartValues.Sanitize)
             .DefaultIfEmpty(0)
             .Sum();
 
@@ -105,15 +104,14 @@ public partial class FirePieChart<TItem> : ComponentBase
 
         Width = Math.Max(Width, 1);
         Height = Math.Max(Height, 1);
-        _renderWidth ??= Width;
-        _renderHeight ??= Height;
+        _plot = PlotArea.FromInset(Width, Height, Padding);
         RebuildPoints();
     }
 
     private void RebuildPoints()
     {
         var items = Items ?? Array.Empty<TItem>();
-        var totalValue = items.Select(ValueSelectorOrThrow).Select(SanitizeValue).Sum();
+        var totalValue = items.Select(ValueSelectorOrThrow).Select(ChartValues.Sanitize).Sum();
         var comparer = EqualityComparer<TItem>.Default;
         var selectedItem = SelectedItem;
         var startAngle = -Math.PI / 2;
@@ -123,7 +121,7 @@ public partial class FirePieChart<TItem> : ComponentBase
         for (var i = 0; i < items.Count; i++)
         {
             var item = items[i];
-            var value = SanitizeValue(ValueSelectorOrThrow(item));
+            var value = ChartValues.Sanitize(ValueSelectorOrThrow(item));
             if (value <= 0 || totalValue <= 0)
             {
                 continue;
@@ -151,7 +149,7 @@ public partial class FirePieChart<TItem> : ComponentBase
                 value,
                 percentage,
                 fill,
-                HoverColorSelector?.Invoke(item) ?? Darken(fill),
+                HoverColorSelector?.Invoke(item) ?? ChartColor.Darken(fill),
                 path,
                 new SvgPoint(labelPoint.X + offset.X, labelPoint.Y + offset.Y),
                 new SvgPoint(tooltipPoint.X + offset.X, tooltipPoint.Y + offset.Y),
@@ -169,18 +167,11 @@ public partial class FirePieChart<TItem> : ComponentBase
         _interaction.SetElements(_points);
     }
 
-    private void UpdateSurfaceSize(ChartSurfaceContext surface)
+    private Task OnPlotAreaChanged(PlotArea plot)
     {
-        var widthChanged = Math.Abs((_renderWidth ?? 0) - surface.Width) > 0.5;
-        var heightChanged = Math.Abs((_renderHeight ?? 0) - surface.Height) > 0.5;
-        if (!widthChanged && !heightChanged)
-        {
-            return;
-        }
-
-        _renderWidth = surface.Width;
-        _renderHeight = surface.Height;
+        _plot = plot;
         RebuildPoints();
+        return Task.CompletedTask;
     }
 
     private string BuildSlicePath(double startAngle, double endAngle)
@@ -252,27 +243,7 @@ public partial class FirePieChart<TItem> : ComponentBase
 
     private string LabelSelectorOrThrow(TItem item) => LabelSelector!(item);
 
-    private static double SanitizeValue(double value) =>
-        double.IsFinite(value) ? Math.Max(value, 0) : 0;
-
-    private static string Fmt(double value) =>
-        double.IsFinite(value)
-            ? value.ToString("F1", CultureInfo.InvariantCulture)
-            : "0.0";
-
-    private static string Darken(string hex)
-    {
-        if (hex.Length != 7 || !hex.StartsWith('#'))
-        {
-            return "#8f2f1a";
-        }
-
-        var r = Convert.ToInt32(hex[1..3], 16);
-        var g = Convert.ToInt32(hex[3..5], 16);
-        var b = Convert.ToInt32(hex[5..7], 16);
-
-        return $"#{Math.Max(r - 28, 0):X2}{Math.Max(g - 28, 0):X2}{Math.Max(b - 28, 0):X2}";
-    }
+    private static string Fmt(double value) => ChartFormat.Fmt(value);
 
     private static bool UseDarkText(string hex)
     {

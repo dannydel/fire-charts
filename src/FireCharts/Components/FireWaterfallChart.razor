@@ -10,12 +10,10 @@
               Height="@Height"
               Responsive="@Responsive"
               HostCssClass="fire-waterfall-chart-host"
-              SvgCssClass="fire-waterfall-chart">
-    <ChildContent Context="surface">
-        @{
-            UpdateSurfaceSize(surface);
-        }
-
+              SvgCssClass="fire-waterfall-chart"
+              Padding="@Padding"
+              OnPlotAreaChanged="OnPlotAreaChanged">
+    <ChildContent>
         @if (Points.Count == 0)
         {
             @if (EmptyStateTemplate is not null)
@@ -24,8 +22,8 @@
             }
             else
             {
-                <SvgText X="@(surface.Width / 2)"
-                         Y="@(surface.Height / 2)"
+                <SvgText X="@(_plot.SurfaceWidth / 2)"
+                         Y="@(_plot.SurfaceHeight / 2)"
                          TextAnchor="middle"
                          CssClass="empty-state"
                          Content="No data" />
@@ -38,9 +36,9 @@
                 <g class="grid-lines">
                     @foreach (var tick in YAxisTicks)
                     {
-                        <line x1="@Fmt(ChartAreaLeft)"
+                        <line x1="@Fmt(_plot.Left)"
                               y1="@Fmt(tick.Position)"
-                              x2="@Fmt(ChartAreaRight)"
+                              x2="@Fmt(_plot.Right)"
                               y2="@Fmt(tick.Position)"
                               class="grid-line" />
                     }
@@ -48,17 +46,17 @@
             }
 
             <g class="axes">
-                <line x1="@Fmt(ChartAreaLeft)" y1="@Fmt(ChartAreaTop)"
-                      x2="@Fmt(ChartAreaLeft)" y2="@Fmt(ChartAreaBottom)"
+                <line x1="@Fmt(_plot.Left)" y1="@Fmt(_plot.Top)"
+                      x2="@Fmt(_plot.Left)" y2="@Fmt(_plot.Bottom)"
                       class="axis-line" />
-                <line x1="@Fmt(ChartAreaLeft)" y1="@Fmt(ChartAreaBottom)"
-                      x2="@Fmt(ChartAreaRight)" y2="@Fmt(ChartAreaBottom)"
+                <line x1="@Fmt(_plot.Left)" y1="@Fmt(_plot.Bottom)"
+                      x2="@Fmt(_plot.Right)" y2="@Fmt(_plot.Bottom)"
                       class="axis-line" />
-                @if (ZeroLineY < ChartAreaBottom - 0.5 && ZeroLineY > ChartAreaTop + 0.5)
+                @if (ZeroLineY < _plot.Bottom - 0.5 && ZeroLineY > _plot.Top + 0.5)
                 {
-                    <line x1="@Fmt(ChartAreaLeft)"
+                    <line x1="@Fmt(_plot.Left)"
                           y1="@Fmt(ZeroLineY)"
-                          x2="@Fmt(ChartAreaRight)"
+                          x2="@Fmt(_plot.Right)"
                           y2="@Fmt(ZeroLineY)"
                           class="zero-line" />
                 }
@@ -69,7 +67,7 @@
                 <g class="value-axis-labels">
                     @foreach (var tick in YAxisTicks)
                     {
-                        <SvgText X="@(ChartAreaLeft - 8)"
+                        <SvgText X="@(_plot.Left - 8)"
                                  Y="@tick.Position"
                                  CssClass="axis-label"
                                  TextAnchor="end"
@@ -82,7 +80,7 @@
                     @foreach (var point in Points)
                     {
                         <SvgText X="@GetBarCenterX(point)"
-                                 Y="@(ChartAreaBottom + 20)"
+                                 Y="@(_plot.Bottom + 20)"
                                  CssClass="axis-label waterfall-axis-label"
                                  TextAnchor="middle"
                                  Content="@point.Label" />

@@ -1,5 +1,6 @@
 using FireCharts.Interaction;
 using FireCharts.Models;
+using FireCharts.Scales;
 using Microsoft.AspNetCore.Components;
 using System.Collections.ObjectModel;
 using System.Globalization;
@@ -9,9 +10,9 @@ namespace FireCharts.Components;
 public partial class FireBarChart<TItem> : ComponentBase
 {
     private IReadOnlyList<BarChartPoint<TItem>> _points = Array.Empty<BarChartPoint<TItem>>();
+    private IReadOnlyList<ScaleTick> _valueAxisTicks = Array.Empty<ScaleTick>();
+    private PlotArea _plot;
     private ChartInteraction<BarChartPoint<TItem>, int> _interaction = default!;
-    private double? _renderWidth;
-    private double? _renderHeight;
     private double _computedMaxValue = 100;
 
     [Parameter] public string Title { get; set; } = "Bar Chart";
@@ -47,26 +48,19 @@ public partial class FireBarChart<TItem> : ComponentBase
     [Parameter] public double FontSize { get; set; } = 12;
     [Parameter] public double CornerRadius { get; set; } = 2;
 
-    private double PaddingTop => 10;
-    private double PaddingRight => 10;
-    private double PaddingBottom => ShowAxisLabels ? 40 : 10;
-    private double PaddingLeft => ShowAxisLabels ? (Horizontal ? 90 : 50) : 10;
+    private ChartPadding Padding => new(
+        Top: 10,
+        Right: 10,
+        Bottom: ShowAxisLabels ? 40 : 10,
+        Left: ShowAxisLabels ? (Horizontal ? 90 : 50) : 10);
 
     internal IReadOnlyList<BarChartPoint<TItem>> Points => _points;
     internal BarChartPoint<TItem>? HoveredPoint => _interaction.Hovered;
-
-    internal double SafeWidth => Math.Max(_renderWidth ?? Width, 1);
-    internal double SafeHeight => Math.Max(_renderHeight ?? Height, 1);
-    internal double ChartAreaLeft => PaddingLeft;
-    internal double ChartAreaTop => PaddingTop;
-    internal double ChartAreaRight => SafeWidth - PaddingRight;
-    internal double ChartAreaBottom => SafeHeight - PaddingBottom;
-    internal double ChartAreaWidth => Math.Max(ChartAreaRight - ChartAreaLeft, 1);
-    internal double ChartAreaHeight => Math.Max(ChartAreaBottom - ChartAreaTop, 1);
     internal int SafeGridLineCount => Math.Max(GridLineCount, 1);
     internal double SafeBarSpacing => Math.Clamp(BarSpacing, 0, 0.9);
 
     internal double ComputedMaxValue => _computedMaxValue;
+    internal IReadOnlyList<ScaleTick> ValueAxisTicks => _valueAxisTicks;
 
     protected override void OnInitialized()
     {
@@ -92,8 +86,7 @@ public partial class FireBarChart<TItem> : ComponentBase
 
         Width = Math.Max(Width, 1);
         Height = Math.Max(Height, 1);
-        _renderWidth ??= Width;
-        _renderHeight ??= Height;
+        _plot = PlotArea.FromInset(Width, Height, Padding);
         RebuildPoints();
     }
 
@@ -102,9 +95,11 @@ public partial class FireBarChart<TItem> : ComponentBase
         var items = Items ?? Array.Empty<TItem>();
         var comparer = EqualityComparer<TItem>.Default;
         var selectedItem = SelectedItem;
-        var computedMaxValue = ResolveComputedMaxValue(items);
+        var scale = BuildValueScale(items);
+        var computedMaxValue = scale.Max;
 
         _computedMaxValue = computedMaxValue;
+        _valueAxisTicks = scale.Ticks;
 
         _points = new ReadOnlyCollection<BarChartPoint<TItem>>(items
             .Select((item, index) => CreatePoint(item, index, comparer.Equals(item, selectedItem), computedMaxValue))
@@ -113,25 +108,18 @@ public partial class FireBarChart<TItem> : ComponentBase
         _interaction.SetElements(_points);
     }
 
-    private void UpdateSurfaceSize(ChartSurfaceContext surface)
+    private Task OnPlotAreaChanged(PlotArea plot)
     {
-        var widthChanged = Math.Abs((_renderWidth ?? 0) - surface.Width) > 0.5;
-        var heightChanged = Math.Abs((_renderHeight ?? 0) - surface.Height) > 0.5;
-        if (!widthChanged && !heightChanged)
-        {
-            return;
-        }
-
-        _renderWidth = surface.Width;
-        _renderHeight = surface.Height;
+        _plot = plot;
         RebuildPoints();
+        return Task.CompletedTask;
     }
 
     private BarChartPoint<TItem> CreatePoint(TItem item, int index, bool isSelected, double computedMaxValue)
     {
         var rect = GetBarRect(index, item, computedMaxValue);
         var label = LabelSelectorOrThrow(item);
-        var value = SanitizeValue(ValueSelectorOrThrow(item));
+        var value = ChartValues.Sanitize(ValueSelectorOrThrow(item));
         var tooltipText = TooltipTextSelector?.Invoke(item);
 
         return new BarChartPoint<TItem>(
@@ -156,24 +144,24 @@ public partial class FireBarChart<TItem> : ComponentBase
             return new SvgRect(0, 0, 0, 0);
         }
 
-        var barValue = SanitizeValue(ValueSelectorOrThrow(item));
+        var barValue = ChartValues.Sanitize(ValueSelectorOrThrow(item));
         var scale = computedMaxValue > 0 ? barValue / computedMaxValue : 0;
         scale = Math.Clamp(scale, 0, 1);
 
         if (Horizontal)
         {
-            var step = ChartAreaHeight / itemCount;
+            var step = _plot.Height / itemCount;
             var barHeight = Math.Max(step * (1 - SafeBarSpacing), 1);
-            var y = ChartAreaTop + index * step + (step - barHeight) / 2;
-            var barWidth = Math.Max(scale * ChartAreaWidth, 0);
-            return new SvgRect(ChartAreaLeft, y, barWidth, barHeight);
+            var y = _plot.Top + index * step + (step - barHeight) / 2;
+            var barWidth = Math.Max(scale * _plot.Width, 0);
+            return new SvgRect(_plot.Left, y, barWidth, barHeight);
         }
 
-        var widthStep = ChartAreaWidth / itemCount;
+        var widthStep = _plot.Width / itemCount;
         var barWidthVertical = Math.Max(widthStep * (1 - SafeBarSpacing), 1);
-        var x = ChartAreaLeft + index * widthStep + (widthStep - barWidthVertical) / 2;
-        var barHeightVertical = Math.Max(scale * ChartAreaHeight, 0);
-        var barY = ChartAreaBottom - barHeightVertical;
+        var x = _plot.Left + index * widthStep + (widthStep - barWidthVertical) / 2;
+        var barHeightVertical = Math.Max(scale * _plot.Height, 0);
+        var barY = _plot.Bottom - barHeightVertical;
         return new SvgRect(x, barY, barWidthVertical, barHeightVertical);
     }
 
@@ -205,56 +193,21 @@ public partial class FireBarChart<TItem> : ComponentBase
 
     private string LabelSelectorOrThrow(TItem item) => LabelSelector!(item);
 
-    private static string Fmt(double value) =>
-        double.IsFinite(value)
-            ? value.ToString("F1", CultureInfo.InvariantCulture)
-            : "0.0";
+    private static string Fmt(double value) => ChartFormat.Fmt(value);
 
-    private static double SanitizeValue(double value) =>
-        double.IsFinite(value) ? Math.Max(value, 0) : 0;
-
-    private double ResolveComputedMaxValue(IReadOnlyList<TItem> items)
+    private AxisScale BuildValueScale(IReadOnlyList<TItem> items)
     {
-        if (MaxValue.HasValue && MaxValue.Value > 0 && double.IsFinite(MaxValue.Value))
+        var values = items.Select(item => ChartValues.Sanitize(ValueSelectorOrThrow(item)));
+        var (pixelStart, pixelEnd) = Horizontal
+            ? (_plot.Left, _plot.Right)
+            : (_plot.Bottom, _plot.Top);
+
+        return AxisScale.FromValues(values, pixelStart, pixelEnd, new AxisScaleOptions
         {
-            return MaxValue.Value;
-        }
-
-        var max = items
-            .Select(ValueSelectorOrThrow)
-            .Where(double.IsFinite)
-            .DefaultIfEmpty(0)
-            .Max();
-
-        if (max <= 0)
-        {
-            return 100;
-        }
-
-        var log = Math.Log10(max);
-        if (!double.IsFinite(log))
-        {
-            return 100;
-        }
-
-        var magnitude = Math.Pow(10, Math.Floor(log));
-        if (magnitude <= 0 || !double.IsFinite(magnitude))
-        {
-            return 100;
-        }
-
-        var normalized = max / magnitude;
-
-        double nice;
-        if (normalized <= 1) nice = 1;
-        else if (normalized <= 1.5) nice = 1.5;
-        else if (normalized <= 2) nice = 2;
-        else if (normalized <= 3) nice = 3;
-        else if (normalized <= 5) nice = 5;
-        else if (normalized <= 7.5) nice = 7.5;
-        else nice = 10;
-
-        var result = nice * magnitude;
-        return double.IsFinite(result) && result > 0 ? result : 100;
+            TickCount = SafeGridLineCount,
+            Baseline = AxisBaseline.IncludeZero,
+            ForcedMax = MaxValue is > 0 && double.IsFinite(MaxValue.Value) ? MaxValue : null,
+            EmptyFallbackMax = 100
+        });
     }
 }

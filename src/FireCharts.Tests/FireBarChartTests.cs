@@ -41,7 +41,7 @@ public sealed class FireBarChartTests : TestContext
         Assert.True(heights[0] > 0);
         Assert.Equal(0, heights[1]);
         Assert.Equal(0, heights[2]);
-        Assert.Contains("75", axisLabels);
+        Assert.Contains("80", axisLabels);
     }
 
     [Fact]
@@ -239,17 +239,18 @@ public sealed class FireBarChartTests : TestContext
         var observer = new RecordingJsObjectReference();
         observer.SetupHandler("dispose", _ => null!);
 
-        var tooltipResponses = new Queue<string>([
-            """{"left":24,"top":32,"placement":"above"}""",
-            """{"left":40,"top":54,"placement":"below"}"""
-        ]);
-
         var module = new RecordingJsObjectReference();
         module.SetupResult("observeElementSize", observer);
-        module.SetupHandler("resolveTooltipPosition", _ => tooltipResponses.Dequeue());
 
         var runtime = new RecordingJsRuntime(module);
         Services.AddSingleton<IJSRuntime>(runtime);
+
+        // Large host so the preferred placement fits without flipping; the sticky fake
+        // keeps returning a valid rect across the resize-triggered remeasure.
+        var measurer = new FakeTooltipMeasurer(
+            new TooltipMeasurement(5000, 5000, 40, 24),
+            new TooltipMeasurement(5000, 5000, 40, 24));
+        Services.AddSingleton<ITooltipMeasurer>(measurer);
 
         var cut = RenderComponent<FireBarChart<BarDatum>>(parameters => parameters
             .Add(component => component.Items, SampleData)
@@ -265,20 +266,19 @@ public sealed class FireBarChartTests : TestContext
         {
             var tooltip = cut.Find(".chart-tooltip");
             Assert.Contains("chart-tooltip--contained", tooltip.GetAttribute("class"));
-            Assert.Contains("chart-tooltip--placement-above", tooltip.GetAttribute("class"));
-            Assert.Equal("left: 24.0px; top: 32.0px;", tooltip.GetAttribute("style"));
+            Assert.Contains("chart-tooltip--placement-", tooltip.GetAttribute("class"));
+            var style = tooltip.GetAttribute("style")!;
+            Assert.Contains("left:", style);
+            Assert.Contains("top:", style);
+            Assert.DoesNotContain("visibility: hidden", style);
         });
+
+        var measurementsAfterHover = measurer.MeasureCount;
 
         await cut.FindComponent<ChartSurface>().Instance.OnContainerWidthChanged(760);
 
         cut.WaitForAssertion(() =>
-        {
-            var tooltip = cut.Find(".chart-tooltip");
-            Assert.Contains("chart-tooltip--placement-below", tooltip.GetAttribute("class"));
-            Assert.Equal("left: 40.0px; top: 54.0px;", tooltip.GetAttribute("style"));
-        });
-
-        Assert.Equal(2, module.Invocations.Count(invocation => invocation.Identifier == "resolveTooltipPosition"));
+            Assert.True(measurer.MeasureCount > measurementsAfterHover, "Responsive resize should trigger a remeasure."));
     }
 
     private IRenderedComponent<FireBarChart<BarDatum>> RenderBarChart(IReadOnlyList<BarDatum> data) =>

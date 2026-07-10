@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using FireCharts.Interaction;
 using FireCharts.Models;
+using FireCharts.Scales;
 using Microsoft.AspNetCore.Components;
 
 namespace FireCharts.Components;
@@ -23,9 +24,8 @@ public partial class FireWaterfallChart<TItem> : ComponentBase
     private IReadOnlyList<WaterfallChartPoint<TItem>> _points = Array.Empty<WaterfallChartPoint<TItem>>();
     private IReadOnlyList<AxisTick> _yAxisTicks = Array.Empty<AxisTick>();
     private IReadOnlyList<Connector> _connectors = Array.Empty<Connector>();
+    private PlotArea _plot;
     private ChartInteraction<WaterfallChartPoint<TItem>, int> _interaction = default!;
-    private double? _renderWidth;
-    private double? _renderHeight;
     private double _scaleMin;
     private double _scaleMax;
 
@@ -64,23 +64,16 @@ public partial class FireWaterfallChart<TItem> : ComponentBase
     [Parameter] public string TotalHoverColor { get; set; } = "#245ec7";
     [Parameter] public string ConnectorColor { get; set; } = "#7d6b76";
 
-    private double PaddingTop => 12;
-    private double PaddingRight => 10;
-    private double PaddingBottom => ShowAxisLabels ? 44 : 10;
-    private double PaddingLeft => ShowAxisLabels ? 62 : 10;
+    private ChartPadding Padding => new(
+        Top: 12,
+        Right: 10,
+        Bottom: ShowAxisLabels ? 44 : 10,
+        Left: ShowAxisLabels ? 62 : 10);
 
     private IReadOnlyList<WaterfallChartPoint<TItem>> Points => _points;
     private IReadOnlyList<AxisTick> YAxisTicks => _yAxisTicks;
     private IReadOnlyList<Connector> Connectors => _connectors;
     private WaterfallChartPoint<TItem>? HoveredPoint => _interaction.Hovered;
-    private double SafeWidth => Math.Max(_renderWidth ?? Width, 1);
-    private double SafeHeight => Math.Max(_renderHeight ?? Height, 1);
-    private double ChartAreaLeft => PaddingLeft;
-    private double ChartAreaTop => PaddingTop;
-    private double ChartAreaRight => SafeWidth - PaddingRight;
-    private double ChartAreaBottom => SafeHeight - PaddingBottom;
-    private double ChartAreaWidth => Math.Max(ChartAreaRight - ChartAreaLeft, 1);
-    private double ChartAreaHeight => Math.Max(ChartAreaBottom - ChartAreaTop, 1);
     private int SafeGridLineCount => Math.Max(GridLineCount, 2);
     private double SafeCornerRadius => Math.Clamp(CornerRadius, 0, 16);
     private double ZeroLineY => MapY(0, _scaleMin, _scaleMax);
@@ -110,8 +103,7 @@ public partial class FireWaterfallChart<TItem> : ComponentBase
 
         Width = Math.Max(Width, 1);
         Height = Math.Max(Height, 1);
-        _renderWidth ??= Width;
-        _renderHeight ??= Height;
+        _plot = PlotArea.FromInset(Width, Height, Padding);
         RebuildPoints();
     }
 
@@ -133,20 +125,28 @@ public partial class FireWaterfallChart<TItem> : ComponentBase
         var allValues = segments
             .SelectMany(point => new[] { point.StartValue, point.EndValue, 0d })
             .ToList();
-        (_scaleMin, _scaleMax, var step) = GetNiceScale(allValues.Min(), allValues.Max(), SafeGridLineCount);
-        _yAxisTicks = BuildTicks(_scaleMin, _scaleMax, step);
+        var yScale = AxisScale.FromValues(
+            allValues,
+            _plot.Bottom,
+            _plot.Top,
+            new AxisScaleOptions { TickCount = SafeGridLineCount, Baseline = AxisBaseline.IncludeZero });
+        _scaleMin = yScale.Min;
+        _scaleMax = yScale.Max;
+        _yAxisTicks = yScale.Ticks
+            .Select(tick => new AxisTick(tick.Value, tick.Pixel))
+            .ToList();
 
         var renderedPoints = new List<WaterfallChartPoint<TItem>>(segments.Count);
         var connectors = new List<Connector>(Math.Max(segments.Count - 1, 0));
         var comparer = EqualityComparer<TItem>.Default;
         var itemCount = segments.Count;
-        var stepWidth = ChartAreaWidth / itemCount;
+        var stepWidth = _plot.Width / itemCount;
         var barWidth = Math.Max(stepWidth * 0.62, 1);
 
         for (var index = 0; index < segments.Count; index++)
         {
             var segment = segments[index];
-            var x = ChartAreaLeft + index * stepWidth + ((stepWidth - barWidth) / 2);
+            var x = _plot.Left + index * stepWidth + ((stepWidth - barWidth) / 2);
             var yTop = MapY(Math.Max(segment.StartValue, segment.EndValue), _scaleMin, _scaleMax);
             var yBottom = MapY(Math.Min(segment.StartValue, segment.EndValue), _scaleMin, _scaleMax);
             var height = Math.Max(yBottom - yTop, 1);
@@ -176,7 +176,7 @@ public partial class FireWaterfallChart<TItem> : ComponentBase
                 var connectorY = MapY(segment.EndValue, _scaleMin, _scaleMax);
                 connectors.Add(new Connector(
                     x + barWidth,
-                    ChartAreaLeft + ((index + 1) * stepWidth) + ((stepWidth - barWidth) / 2),
+                    _plot.Left + ((index + 1) * stepWidth) + ((stepWidth - barWidth) / 2),
                     connectorY));
             }
         }
@@ -275,18 +275,11 @@ public partial class FireWaterfallChart<TItem> : ComponentBase
         return segments;
     }
 
-    private void UpdateSurfaceSize(ChartSurfaceContext surface)
+    private Task OnPlotAreaChanged(PlotArea plot)
     {
-        var widthChanged = Math.Abs((_renderWidth ?? 0) - surface.Width) > 0.5;
-        var heightChanged = Math.Abs((_renderHeight ?? 0) - surface.Height) > 0.5;
-        if (!widthChanged && !heightChanged)
-        {
-            return;
-        }
-
-        _renderWidth = surface.Width;
-        _renderHeight = surface.Height;
+        _plot = plot;
         RebuildPoints();
+        return Task.CompletedTask;
     }
 
     private string GetPointClasses(WaterfallChartPoint<TItem> point)
@@ -348,102 +341,14 @@ public partial class FireWaterfallChart<TItem> : ComponentBase
         var range = max - min;
         if (Math.Abs(range) < 0.000001)
         {
-            return ChartAreaBottom;
+            return _plot.Bottom;
         }
 
         var normalized = (value - min) / range;
-        return ChartAreaBottom - (normalized * ChartAreaHeight);
+        return _plot.Bottom - (normalized * _plot.Height);
     }
 
-    private IReadOnlyList<AxisTick> BuildTicks(double min, double max, double step)
-    {
-        var ticks = new List<AxisTick>();
-        var value = min;
-        var guard = 0;
-
-        while (value <= max + (step * 0.5) && guard < 100)
-        {
-            var normalized = NormalizeZero(value);
-            ticks.Add(new AxisTick(normalized, MapY(normalized, min, max)));
-            value += step;
-            guard++;
-        }
-
-        return new ReadOnlyCollection<AxisTick>(ticks);
-    }
-
-    private static (double Min, double Max, double Step) GetNiceScale(double min, double max, int tickCount)
-    {
-        if (min >= 0)
-        {
-            min = 0;
-        }
-
-        if (max <= 0)
-        {
-            max = 0;
-        }
-
-        if (Math.Abs(max - min) < 0.000001)
-        {
-            var padding = Math.Max(Math.Abs(max) * 0.2, 1d);
-            min -= padding;
-            max += padding;
-
-            if (min >= 0)
-            {
-                min = 0;
-            }
-
-            if (max <= 0)
-            {
-                max = 0;
-            }
-        }
-
-        var safeTickCount = Math.Max(tickCount, 2);
-        var range = NiceNumber(max - min, false);
-        var step = NiceNumber(range / (safeTickCount - 1), true);
-        var niceMin = Math.Floor(min / step) * step;
-        var niceMax = Math.Ceiling(max / step) * step;
-        return (niceMin, niceMax, step);
-    }
-
-    private static double NiceNumber(double range, bool round)
-    {
-        if (range <= 0 || !double.IsFinite(range))
-        {
-            return 1;
-        }
-
-        var exponent = Math.Floor(Math.Log10(range));
-        var fraction = range / Math.Pow(10, exponent);
-        double niceFraction;
-
-        if (round)
-        {
-            if (fraction < 1.5) niceFraction = 1;
-            else if (fraction < 3) niceFraction = 2;
-            else if (fraction < 7) niceFraction = 5;
-            else niceFraction = 10;
-        }
-        else
-        {
-            if (fraction <= 1) niceFraction = 1;
-            else if (fraction <= 2) niceFraction = 2;
-            else if (fraction <= 5) niceFraction = 5;
-            else niceFraction = 10;
-        }
-
-        return niceFraction * Math.Pow(10, exponent);
-    }
-
-    private static double NormalizeZero(double value) => Math.Abs(value) < 0.000001 ? 0 : value;
-
-    private static string Fmt(double value) =>
-        double.IsFinite(value)
-            ? value.ToString("F1", CultureInfo.InvariantCulture)
-            : "0.0";
+    private static string Fmt(double value) => ChartFormat.Fmt(value);
 
     private sealed record SegmentState(
         TItem Item,

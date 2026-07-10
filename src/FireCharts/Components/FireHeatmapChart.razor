@@ -11,12 +11,10 @@
                   Height="@Height"
                   Responsive="@Responsive"
                   HostCssClass="fire-heatmap-chart-host"
-                  SvgCssClass="fire-heatmap-chart">
-        <ChildContent Context="surface">
-            @{
-                UpdateSurfaceSize(surface);
-            }
-
+                  SvgCssClass="fire-heatmap-chart"
+                  Padding="@Padding"
+                  OnPlotAreaChanged="OnPlotAreaChanged">
+        <ChildContent>
             @if (Cells.Count == 0)
             {
                 @if (EmptyStateTemplate is not null)
@@ -25,8 +23,8 @@
                 }
                 else
                 {
-                    <SvgText X="@(surface.Width / 2)"
-                             Y="@(surface.Height / 2)"
+                    <SvgText X="@(_plot.SurfaceWidth / 2)"
+                             Y="@(_plot.SurfaceHeight / 2)"
                              TextAnchor="middle"
                              CssClass="empty-state"
                              Content="No data" />
@@ -35,10 +33,10 @@
             else if (ActiveRenderMode is HeatmapRenderMode.Svg)
             {
                 <g class="heatmap-grid">
-                    <rect x="@Fmt(ChartAreaLeft)"
-                          y="@Fmt(ChartAreaTop)"
-                          width="@Fmt(ChartAreaWidth)"
-                          height="@Fmt(ChartAreaHeight)"
+                    <rect x="@Fmt(_plot.Left)"
+                          y="@Fmt(_plot.Top)"
+                          width="@Fmt(_plot.Width)"
+                          height="@Fmt(_plot.Height)"
                           class="heatmap-frame" />
 
                     @foreach (var cell in PlaceholderCells)
@@ -85,10 +83,10 @@
             else if (ActiveRenderMode is HeatmapRenderMode.Canvas)
             {
                 <g class="heatmap-grid">
-                    <rect x="@Fmt(ChartAreaLeft)"
-                          y="@Fmt(ChartAreaTop)"
-                          width="@Fmt(ChartAreaWidth)"
-                          height="@Fmt(ChartAreaHeight)"
+                    <rect x="@Fmt(_plot.Left)"
+                          y="@Fmt(_plot.Top)"
+                          width="@Fmt(_plot.Width)"
+                          height="@Fmt(_plot.Height)"
                           class="heatmap-frame" />
                 </g>
             }
@@ -98,7 +96,7 @@
                 <g class="heatmap-axis heatmap-axis--rows">
                     @foreach (var row in Rows)
                     {
-                        <SvgText X="@(ChartAreaLeft - 12)"
+                        <SvgText X="@(_plot.Left - 12)"
                                  Y="@(row.CenterY)"
                                  CssClass="axis-label heatmap-row-label"
                                  TextAnchor="end"
@@ -111,10 +109,10 @@
                     @foreach (var column in Columns)
                     {
                         <SvgText X="@(column.CenterX)"
-                                 Y="@(ChartAreaBottom + 28)"
+                                 Y="@(_plot.Bottom + 28)"
                                  CssClass="axis-label heatmap-column-label"
                                  TextAnchor="end"
-                                 Transform="@($"rotate(-45 {Fmt(column.CenterX)} {Fmt(ChartAreaBottom + 28)})")"
+                                 Transform="@($"rotate(-45 {Fmt(column.CenterX)} {Fmt(_plot.Bottom + 28)})")"
                                  Content="@column.Label" />
                     }
                 </g>
@@ -133,8 +131,8 @@
                      @onkeydown="HandleCanvasKeyDownAsync">
                     <HeatmapCanvasLayer RenderRequestJson="@CanvasRenderRequestJson"
                                         InteractionStateJson="@CanvasInteractionStateJson"
-                                        Width="@ChartAreaWidth"
-                                        Height="@ChartAreaHeight"
+                                        Width="@_plot.Width"
+                                        Height="@_plot.Height"
                                         Left="0"
                                         Top="0"
                                         OnPointerMove="HandleCanvasPointerMoveAsync"
