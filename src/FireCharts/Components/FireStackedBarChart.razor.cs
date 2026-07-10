@@ -170,7 +170,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 
             for (var segmentIndex = 0; segmentIndex < itemSegments.Count; segmentIndex++)
             {
-                var value = SanitizeValue(SegmentValueSelectorOrThrow(itemSegments[segmentIndex]));
+                var value = ChartValues.Sanitize(SegmentValueSelectorOrThrow(itemSegments[segmentIndex]));
                 sanitizedValues[segmentIndex] = value;
                 totalValue += value;
             }
@@ -188,7 +188,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
                 var fill = legendMap.TryGetValue(segmentLabel, out var existingLegendItem)
                     ? existingLegendItem.Fill
                     : SegmentColorSelector?.Invoke(segment) ?? DefaultPalette[legendMap.Count % DefaultPalette.Length];
-                var hoverFill = SegmentHoverColorSelector?.Invoke(segment) ?? Darken(fill);
+                var hoverFill = SegmentHoverColorSelector?.Invoke(segment) ?? ChartColor.DarkenByFactor(fill);
 
                 if (!legendMap.ContainsKey(segmentLabel))
                 {
@@ -676,13 +676,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 
     private string SegmentLabelSelectorOrThrow(TSegment segment) => SegmentLabelSelector!(segment);
 
-    private static double SanitizeValue(double value) =>
-        double.IsFinite(value) ? Math.Max(value, 0) : 0;
-
-    private static string Fmt(double value) =>
-        double.IsFinite(value)
-            ? value.ToString("F1", CultureInfo.InvariantCulture)
-            : "0.0";
+    private static string Fmt(double value) => ChartFormat.Fmt(value);
 
     private static double GetNiceMax(double max)
     {
@@ -718,23 +712,6 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
         return double.IsFinite(result) && result > 0 ? result : 100;
     }
 
-    private static string Darken(string hex)
-    {
-        if (hex.Length != 7 || !hex.StartsWith('#'))
-        {
-            return hex;
-        }
-
-        if (!int.TryParse(hex.AsSpan(1, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var r) ||
-            !int.TryParse(hex.AsSpan(3, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var g) ||
-            !int.TryParse(hex.AsSpan(5, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var b))
-        {
-            return hex;
-        }
-
-        return $"#{Math.Max((int)(r * 0.78), 0):X2}{Math.Max((int)(g * 0.78), 0):X2}{Math.Max((int)(b * 0.78), 0):X2}";
-    }
-
     private double ResolveComputedMaxValue(IReadOnlyList<TItem> items)
     {
         if (MaxValue.HasValue && MaxValue.Value > 0 && double.IsFinite(MaxValue.Value))
@@ -745,7 +722,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
         var max = items
             .Select(item => (SegmentsSelectorOrThrow(item) ?? Array.Empty<TSegment>())
                 .Select(SegmentValueSelectorOrThrow)
-                .Select(SanitizeValue)
+                .Select(ChartValues.Sanitize)
                 .Sum())
             .DefaultIfEmpty(0)
             .Max();

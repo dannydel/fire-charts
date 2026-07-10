@@ -123,7 +123,7 @@ public partial class FireBarChart<TItem> : ComponentBase
     {
         var rect = GetBarRect(index, item, computedMaxValue);
         var label = LabelSelectorOrThrow(item);
-        var value = SanitizeValue(ValueSelectorOrThrow(item));
+        var value = ChartValues.Sanitize(ValueSelectorOrThrow(item));
         var tooltipText = TooltipTextSelector?.Invoke(item);
 
         return new BarChartPoint<TItem>(
@@ -148,7 +148,7 @@ public partial class FireBarChart<TItem> : ComponentBase
             return new SvgRect(0, 0, 0, 0);
         }
 
-        var barValue = SanitizeValue(ValueSelectorOrThrow(item));
+        var barValue = ChartValues.Sanitize(ValueSelectorOrThrow(item));
         var scale = computedMaxValue > 0 ? barValue / computedMaxValue : 0;
         scale = Math.Clamp(scale, 0, 1);
 
@@ -261,13 +261,7 @@ public partial class FireBarChart<TItem> : ComponentBase
 
     private string LabelSelectorOrThrow(TItem item) => LabelSelector!(item);
 
-    private static string Fmt(double value) =>
-        double.IsFinite(value)
-            ? value.ToString("F1", CultureInfo.InvariantCulture)
-            : "0.0";
-
-    private static double SanitizeValue(double value) =>
-        double.IsFinite(value) ? Math.Max(value, 0) : 0;
+    private static string Fmt(double value) => ChartFormat.Fmt(value);
 
     private double ResolveComputedMaxValue(IReadOnlyList<TItem> items)
     {
