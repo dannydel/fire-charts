@@ -63,3 +63,6 @@ node_modules/
 # Web build/cache artifacts
 wwwroot/dist/
 wwwroot/build/
+# local tooling artifacts
+.playwright-cli/
+linechart-*.png
