@@ -121,7 +121,7 @@
                        role="listitem"
                        tabindex="0"
                        aria-label="@point.AccessibleLabel"
-                       aria-selected="@point.IsSelected"
+                       aria-selected="@IsSelected(point)"
                        @onmouseover="() => HandleHoverAsync(point)"
                        @onmouseout="() => HandleHoverLeaveAsync(point)"
                        @onfocus="() => HandleFocusAsync(point)"
@@ -170,8 +170,13 @@
     <OverlayContent>
         @if (ShowTooltip && HoveredPoint is not null)
         {
-            <div class="chart-tooltip"
-                 style="@GetTooltipStyle(HoveredPoint)">
+            <ChartTooltip AnchorX="@GetTooltipAnchor(HoveredPoint).X"
+                          AnchorY="@GetTooltipAnchor(HoveredPoint).Y"
+                          ConstrainToBounds="@ConstrainTooltipToChartBounds"
+                          MeasurementKey="@HoveredPoint"
+                          PreferredPlacement="ChartTooltipPlacement.Above"
+                          LegacyStyle="@GetTooltipStyle(HoveredPoint)"
+                          Offset="8">
                 @if (TooltipTemplate is not null)
                 {
                     @TooltipTemplate(HoveredPoint)
@@ -181,7 +186,7 @@
                     <div class="tooltip-label">@HoveredPoint.Label</div>
                     <div class="tooltip-value">@HoveredPoint.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)</div>
                 }
-            </div>
+            </ChartTooltip>
         }
     </OverlayContent>
 </ChartSurface>

@@ -1,0 +1,161 @@
+@page "/waterfallchart"
+
+@using System.Globalization
+@using FireCharts.Example.Components
+@using FireCharts.Models
+
+<PageTitle>Waterfall Chart</PageTitle>
+
+<PageIntro Kicker="Contribution flow"
+           Title="Waterfall charts explain how a total moved instead of only where it ended."
+           Description="This first release focuses on the classic vertical waterfall: a starting value, step-by-step changes, computed subtotals, and a final total.">
+    <div class="stat-strip" aria-label="Waterfall chart design goals">
+        <div class="stat-pill"><strong>Story</strong><span>See what pushed a total up or down without manually reconstructing the math</span></div>
+        <div class="stat-pill"><strong>Signals</strong><span>Positive, negative, and total bars stay visually distinct at a glance</span></div>
+        <div class="stat-pill"><strong>Consistency</strong><span>Selection, tooltips, and responsive layout match the rest of the FireCharts library</span></div>
+    </div>
+</PageIntro>
+
+<section class="chart-grid">
+    <ChartDemoCard Kicker="Operational reconciliation"
+                   Title="Quarterly overtime variance"
+                   Description="A waterfall makes it easy to explain why overtime moved away from the starting plan before landing on the revised total.">
+        <ChildContent>
+            <div class="chart-scroll">
+                <FireWaterfallChart TItem="VarianceStep"
+                                    Title="Quarterly overtime variance"
+                                    Description="Budget plan to revised overtime total"
+                                    Width="920"
+                                    Height="420"
+                                    Responsive="true"
+                                    ConstrainTooltipToChartBounds="true"
+                                    Items="@OvertimeVariance"
+                                    LabelSelector="step => step.Label"
+                                    ValueSelector="step => step.Value"
+                                    StepTypeSelector="step => step.StepType"
+                                    ValueFormat="N0"
+                                    IncreaseColor="#198f8c"
+                                    DecreaseColor="#d94f3d"
+                                    TotalColor="#4d89ff"
+                                    ConnectorColor="#7d6b76"
+                                    @bind-SelectedItem="SelectedVarianceStep">
+                    <TooltipTemplate Context="point">
+                        <div class="demo-tooltip-title">@point.Label</div>
+                        <div>@point.StepType</div>
+                        <div>@point.DisplayValue.ToString("N0", CultureInfo.InvariantCulture) hours</div>
+                    </TooltipTemplate>
+                </FireWaterfallChart>
+            </div>
+        </ChildContent>
+        <FooterContent>
+            <p class="selection-note" role="status" aria-live="polite">
+                @if (SelectedVarianceStep is not null)
+                {
+                    <span><strong>Selected:</strong> @SelectedVarianceStep.Label (@SelectedVarianceStep.StepType.ToString())</span>
+                }
+                else
+                {
+                    <span>Select a step to inspect the variance path.</span>
+                }
+            </p>
+        </FooterContent>
+    </ChartDemoCard>
+
+    <ChartDemoCard Kicker="Compact business case"
+                   Title="Subscription revenue walk"
+                   Description="A smaller waterfall still tells a crisp story when the point is how a final number was assembled."
+                   Compact="true">
+        <ChildContent>
+            <FireWaterfallChart TItem="RevenueWalkStep"
+                                Title="Subscription revenue walk"
+                                Description="Starting MRR to ending MRR"
+                                Width="460"
+                                Height="340"
+                                Responsive="true"
+                                ConstrainTooltipToChartBounds="true"
+                                Items="@RevenueWalk"
+                                LabelSelector="step => step.Label"
+                                ValueSelector="step => step.Value"
+                                StepTypeSelector="step => step.StepType"
+                                ValueFormat="N0"
+                                ShowGridLines="false"
+                                ShowConnectors="true" />
+        </ChildContent>
+    </ChartDemoCard>
+</section>
+
+<ExampleDocsSection Title="Waterfall chart code examples"
+                    Description="Use the waterfall when the audience needs to understand how a result changed over a sequence of contributing steps."
+                    CodeTitle="Render a typed waterfall chart"
+                    CodeDescription="Pass step labels, signed deltas, and explicit step types. Subtotals and totals are computed from the running total in the component."
+                    CodeExample="@WaterfallChartUsageExample"
+                    ApiTitle="Most useful parameters"
+                    ApiDescription="These cover the first release scenarios: classic contribution walks, totals, styling, and interaction."
+                    ApiItems="@WaterfallChartApiItems" />
+
+@code {
+    private VarianceStep? SelectedVarianceStep { get; set; }
+
+    private IReadOnlyList<VarianceStep> OvertimeVariance { get; } =
+    [
+        new("Plan", 1240, WaterfallStepType.Start),
+        new("Storm coverage", 180, WaterfallStepType.Change),
+        new("Vacancy savings", -95, WaterfallStepType.Change),
+        new("Mutual aid backfill", 72, WaterfallStepType.Change),
+        new("Mid-quarter subtotal", 0, WaterfallStepType.Subtotal),
+        new("Training realignment", -44, WaterfallStepType.Change),
+        new("Holiday callback", 61, WaterfallStepType.Change),
+        new("Revised total", 0, WaterfallStepType.Total)
+    ];
+
+    private IReadOnlyList<RevenueWalkStep> RevenueWalk { get; } =
+    [
+        new("Starting MRR", 82000, WaterfallStepType.Start),
+        new("New business", 12500, WaterfallStepType.Change),
+        new("Expansion", 6100, WaterfallStepType.Change),
+        new("Churn", -8400, WaterfallStepType.Change),
+        new("Ending MRR", 0, WaterfallStepType.Total)
+    ];
+
+    private string WaterfallChartUsageExample => """
+@using FireCharts.Components
+@using FireCharts.Models
+
+@code {
+    private WalkStep? selectedStep;
+
+    private IReadOnlyList<WalkStep> steps =
+    [
+        new("Starting budget", 450, WaterfallStepType.Start),
+        new("Seasonal hiring", 38, WaterfallStepType.Change),
+        new("Vendor savings", -21, WaterfallStepType.Change),
+        new("Updated total", 0, WaterfallStepType.Total)
+    ];
+
+    private sealed record WalkStep(string Label, double Value, WaterfallStepType StepType);
+}
+
+<FireWaterfallChart TItem="WalkStep"
+                    Title="Budget walk"
+                    Description="Starting budget to updated total"
+                    Items="@steps"
+                    LabelSelector="step => step.Label"
+                    ValueSelector="step => step.Value"
+                    StepTypeSelector="step => step.StepType"
+                    Responsive="true"
+                    @bind-SelectedItem="selectedStep" />
+""";
+
+    private IReadOnlyList<ExampleApiItem> WaterfallChartApiItems { get; } =
+    [
+        new("LabelSelector, ValueSelector, and StepTypeSelector", "Map each input item to its display label, signed delta, and explicit waterfall role."),
+        new("IncreaseColor, DecreaseColor, and TotalColor", "Control the visual distinction between gains, losses, and computed totals."),
+        new("ShowConnectors", "Toggle the bridge lines that visually carry the running total from one step to the next."),
+        new("@bind-SelectedItem", "Keep the currently selected step in sync with the rest of the page or dashboard."),
+        new("TooltipTemplate", "Render richer detail than the default step type, label, and value tooltip."),
+        new("ShowValueLabels and ValueFormat", "Decide how much numeric annotation appears directly on the chart.")
+    ];
+
+    private sealed record VarianceStep(string Label, double Value, WaterfallStepType StepType);
+    private sealed record RevenueWalkStep(string Label, double Value, WaterfallStepType StepType);
+}

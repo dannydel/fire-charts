@@ -18,3 +18,7 @@
     overflow: visible;
     pointer-events: none;
 }
+
+.chart-tooltip--contained {
+    transform: none !important;
+}

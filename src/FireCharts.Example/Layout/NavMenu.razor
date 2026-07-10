@@ -10,7 +10,7 @@
                 <img class="brand-mark" src="brand/concepts/firecharts-concept-2b.svg" alt="" />
                 <span class="brand-copy">
                     <span class="brand-title">FireCharts</span>
-                    <span class="brand-subtitle">A Blazor forward chart library.</span>
+                    <span class="brand-subtitle">Chart-first Blazor examples for product teams.</span>
                 </span>
             </a>
 
@@ -29,115 +29,161 @@
             </button>
         </div>
 
+        <div class="nav-meta">
+            <p class="nav-meta__eyebrow">Showroom Navigation</p>
+            <p class="nav-meta__copy">
+                Move through chart families, comparison patterns, and supporting reference pages without the usual
+                starter-template detours.
+            </p>
+        </div>
+
         <div class="nav-divider" aria-hidden="true"></div>
 
         <div id="main-navigation" class="nav-scrollable">
             <nav class="nav" aria-label="Primary">
-                <div class="nav-item">
-                    <NavLink class="nav-link" href="" Match="NavLinkMatch.All" title="Overview" aria-label="Overview">
-                        <span class="nav-icon-wrap nav-icon-wrap--neutral">
-                            <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span>
-                        </span>
-                        <span class="nav-copy">
-                            <span class="nav-label">Overview</span>
-                            <span class="nav-description">Design principles and system highlights</span>
-                        </span>
-                    </NavLink>
-                </div>
-                <div class="nav-item">
-                    <NavLink class="nav-link" href="counter" title="Interaction" aria-label="Interaction">
-                        <span class="nav-icon-wrap nav-icon-wrap--blue">
-                            <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span>
-                        </span>
-                        <span class="nav-copy">
-                            <span class="nav-label">Interaction</span>
-                            <span class="nav-description">Buttons, status feedback, and focus states</span>
-                        </span>
-                    </NavLink>
-                </div>
-                <div class="nav-item">
-                    <NavLink class="nav-link" href="weather" title="Data Table" aria-label="Data Table">
-                        <span class="nav-icon-wrap nav-icon-wrap--green">
-                            <span class="bi bi-table-nav-menu" aria-hidden="true"></span>
-                        </span>
-                        <span class="nav-copy">
-                            <span class="nav-label">Data Table</span>
-                            <span class="nav-description">Readable rows, labels, and supporting content</span>
-                        </span>
-                    </NavLink>
-                </div>
-                <div class="nav-item">
-                    <NavLink class="nav-link" href="barchart" title="Bar Charts" aria-label="Bar Charts">
-                        <span class="nav-icon-wrap nav-icon-wrap--amber">
-                            <span class="bi bi-bar-chart-nav-menu" aria-hidden="true"></span>
-                        </span>
-                        <span class="nav-copy">
-                            <span class="nav-label">Bar Charts</span>
-                            <span class="nav-description">Accessible palettes and keyboard-friendly SVG bars</span>
-                        </span>
-                    </NavLink>
-                </div>
-                <div class="nav-item">
-                    <NavLink class="nav-link" href="stackedbarchart" title="Stacked Bar Charts" aria-label="Stacked Bar Charts">
-                        <span class="nav-icon-wrap nav-icon-wrap--amber">
-                            <span class="bi bi-stacked-bar-chart-nav-menu" aria-hidden="true"></span>
-                        </span>
-                        <span class="nav-copy">
-                            <span class="nav-label">Stacked Bars</span>
-                            <span class="nav-description">Segment legends, composition totals, and SVG annotation layers</span>
-                        </span>
-                    </NavLink>
-                </div>
-                <div class="nav-item">
-                    <NavLink class="nav-link" href="linechart" title="Line Charts" aria-label="Line Charts">
-                        <span class="nav-icon-wrap nav-icon-wrap--teal">
-                            <span class="bi bi-line-chart-nav-menu" aria-hidden="true"></span>
-                        </span>
-                        <span class="nav-copy">
-                            <span class="nav-label">Line Charts</span>
-                            <span class="nav-description">Smooth trends, milestone markers, and multi-series comparison</span>
-                        </span>
-                    </NavLink>
-                </div>
-                <div class="nav-item">
-                    <NavLink class="nav-link" href="piechart" title="Pie Charts" aria-label="Pie Charts">
-                        <span class="nav-icon-wrap nav-icon-wrap--violet">
-                            <span class="bi bi-pie-chart-nav-menu" aria-hidden="true"></span>
-                        </span>
-                        <span class="nav-copy">
-                            <span class="nav-label">Pie Charts</span>
-                            <span class="nav-description">Interactive slices, center summaries, and tooltip-driven detail</span>
-                        </span>
-                    </NavLink>
-                </div>
-                <div class="nav-item">
-                    <NavLink class="nav-link" href="scatterchart" title="Scatter Charts" aria-label="Scatter Charts">
-                        <span class="nav-icon-wrap nav-icon-wrap--teal">
-                            <span class="bi bi-scatter-chart-nav-menu" aria-hidden="true"></span>
-                        </span>
-                        <span class="nav-copy">
-                            <span class="nav-label">Scatter Charts</span>
-                            <span class="nav-description">Relationship views, clustering, and outlier-friendly SVG points</span>
-                        </span>
-                    </NavLink>
-                </div>
-                <div class="nav-item">
-                    <NavLink class="nav-link" href="heatmapchart" title="Heatmap Charts" aria-label="Heatmap Charts">
-                        <span class="nav-icon-wrap nav-icon-wrap--amber">
-                            <span class="bi bi-grid-3x3-gap-nav-menu" aria-hidden="true"></span>
-                        </span>
-                        <span class="nav-copy">
-                            <span class="nav-label">Heatmaps</span>
-                            <span class="nav-description">Intensity grids for day-hour demand, staffing pressure, and operational patterns</span>
-                        </span>
-                    </NavLink>
-                </div>
+                <section class="nav-section" aria-labelledby="nav-overview">
+                    <p id="nav-overview" class="nav-section__title">Overview</p>
+
+                    <div class="nav-item">
+                        <NavLink class="nav-link" href="" Match="NavLinkMatch.All" title="Overview" aria-label="Overview">
+                            <span class="nav-icon-wrap nav-icon-wrap--neutral">
+                                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span>
+                            </span>
+                            <span class="nav-copy">
+                                <span class="nav-label">Overview</span>
+                                <span class="nav-description">Landing page, chart families, and developer story</span>
+                            </span>
+                        </NavLink>
+                    </div>
+                </section>
+
+                <section class="nav-section" aria-labelledby="nav-comparison">
+                    <p id="nav-comparison" class="nav-section__title">Trends And Comparison</p>
+
+                    <div class="nav-item">
+                        <NavLink class="nav-link" href="linechart" title="Line Charts" aria-label="Line Charts">
+                            <span class="nav-icon-wrap nav-icon-wrap--blue">
+                                <span class="bi bi-line-chart-nav-menu" aria-hidden="true"></span>
+                            </span>
+                            <span class="nav-copy">
+                                <span class="nav-label">Line Charts</span>
+                                <span class="nav-description">Single-series trends, comparisons, and highlighted milestones</span>
+                            </span>
+                        </NavLink>
+                    </div>
+
+                    <div class="nav-item">
+                        <NavLink class="nav-link" href="barchart" title="Bar Charts" aria-label="Bar Charts">
+                            <span class="nav-icon-wrap nav-icon-wrap--amber">
+                                <span class="bi bi-bar-chart-nav-menu" aria-hidden="true"></span>
+                            </span>
+                            <span class="nav-copy">
+                                <span class="nav-label">Bar Charts</span>
+                                <span class="nav-description">Ranking, category comparison, and compact operational summaries</span>
+                            </span>
+                        </NavLink>
+                    </div>
+
+                    <div class="nav-item">
+                        <NavLink class="nav-link" href="clusteredbarchart" title="Clustered Bar Charts" aria-label="Clustered Bar Charts">
+                            <span class="nav-icon-wrap nav-icon-wrap--amber">
+                                <svg class="nav-icon-svg" viewBox="0 0 16 16" aria-hidden="true">
+                                    <path fill="currentColor" d="M0 0h1v15h15v1H0V0Z" />
+                                    <rect x="2.1" y="8.4" width="2.2" height="4" rx=".45" fill="currentColor" />
+                                    <rect x="4.9" y="6.6" width="2.2" height="5.8" rx=".45" fill="currentColor" opacity=".88" />
+                                    <rect x="7.7" y="4.7" width="2.2" height="7.7" rx=".45" fill="currentColor" />
+                                    <rect x="10.5" y="5.8" width="2.2" height="6.6" rx=".45" fill="currentColor" opacity=".78" />
+                                    <path d="M2.6 3.7h9.2" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" opacity=".68" />
+                                </svg>
+                            </span>
+                            <span class="nav-copy">
+                                <span class="nav-label">Clustered Bars</span>
+                                <span class="nav-description">Side-by-side repeated series for category and period comparison</span>
+                            </span>
+                        </NavLink>
+                    </div>
+
+                    <div class="nav-item">
+                        <NavLink class="nav-link" href="stackedbarchart" title="Stacked Bar Charts" aria-label="Stacked Bar Charts">
+                            <span class="nav-icon-wrap nav-icon-wrap--amber">
+                                <span class="bi bi-stacked-bar-chart-nav-menu" aria-hidden="true"></span>
+                            </span>
+                            <span class="nav-copy">
+                                <span class="nav-label">Stacked Bars</span>
+                                <span class="nav-description">Total-plus-composition views with shared segment legends</span>
+                            </span>
+                        </NavLink>
+                    </div>
+
+                    <div class="nav-item">
+                        <NavLink class="nav-link" href="waterfallchart" title="Waterfall Charts" aria-label="Waterfall Charts">
+                            <span class="nav-icon-wrap nav-icon-wrap--blue">
+                                <span class="bi bi-waterfall-chart-nav-menu" aria-hidden="true"></span>
+                            </span>
+                            <span class="nav-copy">
+                                <span class="nav-label">Waterfall</span>
+                                <span class="nav-description">Contribution walks for totals, reconciliations, and variance stories</span>
+                            </span>
+                        </NavLink>
+                    </div>
+                </section>
+
+                <section class="nav-section" aria-labelledby="nav-analysis">
+                    <p id="nav-analysis" class="nav-section__title">Composition And Analysis</p>
+
+                    <div class="nav-item">
+                        <NavLink class="nav-link" href="piechart" title="Pie Charts" aria-label="Pie Charts">
+                            <span class="nav-icon-wrap nav-icon-wrap--violet">
+                                <span class="bi bi-pie-chart-nav-menu" aria-hidden="true"></span>
+                            </span>
+                            <span class="nav-copy">
+                                <span class="nav-label">Pie Charts</span>
+                                <span class="nav-description">Radial composition with overlay labels or legend-first presentation</span>
+                            </span>
+                        </NavLink>
+                    </div>
+
+                    <div class="nav-item">
+                        <NavLink class="nav-link" href="scatterchart" title="Scatter Charts" aria-label="Scatter Charts">
+                            <span class="nav-icon-wrap nav-icon-wrap--teal">
+                                <span class="bi bi-scatter-chart-nav-menu" aria-hidden="true"></span>
+                            </span>
+                            <span class="nav-copy">
+                                <span class="nav-label">Scatter Charts</span>
+                                <span class="nav-description">Correlations, clustering, and outlier detection without forced lines</span>
+                            </span>
+                        </NavLink>
+                    </div>
+
+                    <div class="nav-item">
+                        <NavLink class="nav-link" href="heatmapchart" title="Heatmap Charts" aria-label="Heatmap Charts">
+                            <span class="nav-icon-wrap nav-icon-wrap--green">
+                                <span class="bi bi-grid-3x3-gap-nav-menu" aria-hidden="true"></span>
+                            </span>
+                            <span class="nav-copy">
+                                <span class="nav-label">Heatmaps</span>
+                                <span class="nav-description">Operational intensity surfaces for day-hour and matrix-style analysis</span>
+                            </span>
+                        </NavLink>
+                    </div>
+                </section>
             </nav>
         </div>
 
+        <div class="nav-support" aria-label="Supporting example pages">
+            <p class="nav-support__title">Supporting Patterns</p>
+            <div class="nav-support__links">
+                <NavLink class="nav-support__link" href="interactionmodel">Interaction model</NavLink>
+                <NavLink class="nav-support__link" href="tablepatterns">Table patterns</NavLink>
+            </div>
+        </div>
+
         <div class="nav-promo">
-            <p class="nav-promo__title">Build clearer data experiences.</p>
-            <p class="nav-promo__copy">Accessible chart patterns, polished interactions, and reusable examples in one compact gallery.</p>
+            <p class="nav-promo__title">One visual language across every chart.</p>
+            <p class="nav-promo__copy">
+                Typed selectors, responsive layouts, and accessible interactions stay consistent whether the view is a
+                trend, matrix, composition chart, or contribution walk.
+            </p>
         </div>
     </div>
 </div>

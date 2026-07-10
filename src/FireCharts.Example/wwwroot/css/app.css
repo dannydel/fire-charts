@@ -293,6 +293,11 @@ textarea:focus-visible,
     height: 100%;
 }
 
+.chart-card{
+    display:block;
+    width:100%;
+}
+
 .table-card__header,
 .chart-card__header {
     display: flex;
@@ -353,8 +358,8 @@ textarea:focus-visible,
     width: 100%;
     overflow-x: auto;
     overflow-y: hidden;
-    margin-top: -4rem;
-    padding-top: 4rem;
+    margin-top: 0;
+    padding-top: 0;
     padding-bottom: 0.35rem;
     scrollbar-width: thin;
 }
@@ -697,10 +702,6 @@ code {
         grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.8fr);
         align-items: start;
     }
-
-    .chart-card--compact {
-        grid-column: 1 / 2;
-    }
 }
 
 @media (max-width: 899.98px) {
@@ -796,5 +797,237 @@ code {
         animation-iteration-count: 1 !important;
         scroll-behavior: auto !important;
         transition-duration: 0.01ms !important;
+    }
+}
+
+/* Showcase refresh overrides */
+
+.button-link {
+    gap: 0.45rem;
+    min-height: 2.9rem;
+    padding: 0.78rem 1.1rem;
+    border-color: rgba(48, 32, 39, 0.14);
+    background: rgba(255, 255, 255, 0.82);
+    box-shadow: 0 14px 30px rgba(46, 28, 20, 0.08);
+}
+
+.button-link--primary {
+    background: linear-gradient(135deg, rgba(240, 95, 59, 0.98), rgba(255, 179, 71, 0.94));
+}
+
+.page-section {
+    margin-bottom: clamp(1.75rem, 3vw, 2.5rem);
+}
+
+.page-section--compact {
+    max-width: 54rem;
+}
+
+.section-heading {
+    max-width: 46rem;
+}
+
+.section-lede,
+.hero-lede {
+    max-width: 42rem;
+    font-size: 1.05rem;
+    line-height: 1.72;
+}
+
+.page-intro {
+    display: grid;
+    gap: 1.35rem;
+    padding: clamp(1.2rem, 2.5vw, 1.7rem);
+    border: 1px solid rgba(48, 32, 39, 0.12);
+    border-radius: 1.7rem;
+    background:
+        radial-gradient(circle at top left, rgba(240, 95, 59, 0.12), transparent 28%),
+        linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 250, 245, 0.98));
+    box-shadow: 0 24px 56px rgba(46, 28, 20, 0.08);
+}
+
+.page-intro__support {
+    display: grid;
+    gap: 1rem;
+}
+
+.page-intro__support .stat-strip {
+    margin-top: 0;
+}
+
+.feature-grid {
+    gap: 1.15rem;
+    margin-top: 1.3rem;
+}
+
+.feature-card {
+    padding: 1.45rem;
+    border-radius: 1.5rem;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 249, 244, 0.98));
+    box-shadow: 0 20px 48px rgba(46, 28, 20, 0.08);
+}
+
+.stat-strip {
+    gap: 0.85rem;
+}
+
+.stat-pill {
+    min-width: 0;
+    padding: 1rem 1.05rem;
+    border-radius: 1.15rem;
+    background: rgba(255, 253, 249, 0.86);
+}
+
+.table-card,
+.chart-card {
+    padding: clamp(1.2rem, 2.4vw, 1.5rem);
+}
+
+.chart-card,
+.docs-card,
+.table-card {
+    border-radius: 1.6rem;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 249, 244, 0.98));
+    box-shadow: 0 26px 58px rgba(46, 28, 20, 0.09);
+}
+
+.table-card__header,
+.chart-card__header {
+    align-items: start;
+    gap: 1.15rem;
+    margin-bottom: 1rem;
+}
+
+.table-card__summary,
+.chart-card__copy {
+    max-width: 26rem;
+    line-height: 1.55;
+}
+
+.chart-grid {
+    gap: 1.2rem;
+}
+
+.chart-scroll {
+    margin-top: 0;
+    padding-top: 0;
+    padding-bottom: 0.35rem;
+}
+
+.chart-scroll > * {
+    min-width: 22rem;
+}
+
+.selection-note {
+    margin-top: 1rem;
+    padding-top: 0.9rem;
+    border-top: 1px solid rgba(48, 32, 39, 0.08);
+}
+
+.playground-layout {
+    gap: 1.2rem;
+}
+
+.playground-panel {
+    padding: 1rem;
+    border-radius: 1.2rem;
+    background: rgba(255, 252, 248, 0.92);
+}
+
+.control-toggle,
+.control-field,
+.control-select {
+    border-radius: 1rem;
+}
+
+.button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.button-row .button-link {
+    min-height: 2.3rem;
+    padding: 0.6rem 0.9rem;
+    box-shadow: none;
+}
+
+.docs-section__heading {
+    margin-bottom: 1rem;
+}
+
+.docs-grid {
+    gap: 1.2rem;
+    margin-top: 1.15rem;
+}
+
+.docs-card {
+    padding: 1.45rem;
+}
+
+.code-example {
+    border-radius: 1.2rem;
+}
+
+.table-modern thead th {
+    padding-top: 0.9rem;
+}
+
+.table-modern tbody tr:nth-child(odd) td {
+    background: rgba(255, 250, 245, 0.54);
+}
+
+@media (min-width: 900px) {
+    .page-intro {
+        grid-template-columns: minmax(0, 1.1fr) minmax(18rem, 0.9fr);
+        align-items: end;
+    }
+
+    .page-intro.page-section--compact,
+    .page-section--compact .page-intro {
+        grid-template-columns: 1fr;
+    }
+
+    .feature-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .chart-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+    }
+
+    .playground-layout {
+        grid-template-columns: minmax(0, 1.35fr) minmax(17rem, 0.78fr);
+        align-items: start;
+    }
+
+    .docs-grid {
+        grid-template-columns: minmax(0, 1.15fr) minmax(18rem, 0.85fr);
+        align-items: start;
+    }
+}
+
+@media (max-width: 640.98px) {
+    .page-intro,
+    .feature-card,
+    .table-card,
+    .chart-card,
+    .docs-card {
+        border-radius: 1.35rem;
+    }
+
+    .page-intro,
+    .feature-card,
+    .table-card,
+    .chart-card,
+    .docs-card,
+    .stat-pill {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .chart-scroll > * {
+        min-width: 26rem;
     }
 }

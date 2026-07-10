@@ -21,6 +21,9 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
     private IReadOnlyList<StackedBarChartSegment<TItem, TSegment>> _segments = Array.Empty<StackedBarChartSegment<TItem, TSegment>>();
     private IReadOnlyList<BarState> _bars = Array.Empty<BarState>();
     private IReadOnlyList<LegendItem> _legendItems = Array.Empty<LegendItem>();
+    private Dictionary<string, int> _segmentIndexByKey = [];
+    private double _computedMaxValue = 100;
+    private int? _hoveredBarIndex;
     private int? _hoveredSegmentIndex;
     private int? _focusedSegmentIndex;
     private double? _renderWidth;
@@ -41,6 +44,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
     [Parameter] public EventCallback<ChartPointInteraction<TItem>> OnPointClick { get; set; }
     [Parameter] public EventCallback<ChartPointInteraction<TItem>> OnPointHoverChanged { get; set; }
     [Parameter] public RenderFragment<StackedBarChartSegment<TItem, TSegment>>? TooltipTemplate { get; set; }
+    [Parameter] public RenderFragment<StackedBarTooltipContext<TItem, TSegment>>? SharedTooltipTemplate { get; set; }
     [Parameter] public RenderFragment<StackedBarChartContext<TItem, TSegment>>? ChartContentTemplate { get; set; }
     [Parameter] public RenderFragment? EmptyStateTemplate { get; set; }
     [Parameter] public double Width { get; set; } = 640;
@@ -50,6 +54,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
     [Parameter] public bool ShowGridLines { get; set; } = true;
     [Parameter] public bool ShowAxisLabels { get; set; } = true;
     [Parameter] public bool ShowTooltip { get; set; } = true;
+    [Parameter] public bool ConstrainTooltipToChartBounds { get; set; }
     [Parameter] public bool ShowLegend { get; set; } = true;
     [Parameter] public int GridLineCount { get; set; } = 5;
     [Parameter] public double BarWidthRatio { get; set; } = 0.72;
@@ -57,6 +62,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
     [Parameter] public double? MaxValue { get; set; }
     [Parameter] public double CornerRadius { get; set; } = 3;
     [Parameter] public ChartLegendPlacement LegendPlacement { get; set; } = ChartLegendPlacement.Bottom;
+    [Parameter] public BarTooltipInteractionMode TooltipInteractionMode { get; set; } = BarTooltipInteractionMode.Shared;
 
     private double PaddingTop => 10;
     private double PaddingRight => 10;
@@ -67,6 +73,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
     internal IReadOnlyList<BarState> Bars => _bars;
     internal IReadOnlyList<LegendItem> LegendItems => _legendItems;
     internal StackedBarChartSegment<TItem, TSegment>? HoveredSegment => _hoveredSegmentIndex is int index && index >= 0 && index < _segments.Count ? _segments[index] : null;
+    internal bool UsesSharedTooltip => TooltipInteractionMode == BarTooltipInteractionMode.Shared;
     internal double SafeWidth => Math.Max(_renderWidth ?? Width, 1);
     internal double SafeHeight => Math.Max(_renderHeight ?? Height, 1);
     internal double ChartAreaLeft => PaddingLeft;
@@ -79,6 +86,35 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
     internal bool HasLegendHover => !string.IsNullOrWhiteSpace(_hoveredLegendLabel);
     internal bool ShouldRenderLegendBeforeChart => LegendPlacement is ChartLegendPlacement.Top or ChartLegendPlacement.Left or ChartLegendPlacement.Start;
     internal string ShellCssClasses => string.Join(" ", GetShellClasses());
+    internal int? TooltipBarIndex => UsesSharedTooltip
+        ? _hoveredBarIndex ?? HoveredSegment?.BarIndex ?? FocusedSegment?.BarIndex
+        : HoveredSegment?.BarIndex;
+    internal BarState? TooltipBar => TooltipBarIndex is int index
+        ? index >= 0 && index < _bars.Count ? _bars[index] : null
+        : null;
+    internal StackedBarChartSegment<TItem, TSegment>? FocusedSegment => _focusedSegmentIndex is int index && index >= 0 && index < _segments.Count ? _segments[index] : null;
+    internal StackedBarChartSegment<TItem, TSegment>? TooltipActiveSegment
+    {
+        get
+        {
+            var ownerIndex = TooltipBarIndex;
+            if (ownerIndex is null)
+            {
+                return UsesSharedTooltip ? null : HoveredSegment;
+            }
+
+            if (HoveredSegment?.BarIndex == ownerIndex)
+            {
+                return HoveredSegment;
+            }
+
+            return FocusedSegment?.BarIndex == ownerIndex ? FocusedSegment : null;
+        }
+    }
+    internal StackedBarTooltipContext<TItem, TSegment>? SharedTooltipContext =>
+        !UsesSharedTooltip || TooltipBar is null
+            ? null
+            : CreateSharedTooltipContext(TooltipBar);
     internal StackedBarChartContext<TItem, TSegment> ChartContext =>
         new(
             SafeWidth,
@@ -93,26 +129,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
             ComputedMaxValue,
             Segments);
 
-    internal double ComputedMaxValue
-    {
-        get
-        {
-            if (MaxValue.HasValue && MaxValue.Value > 0 && double.IsFinite(MaxValue.Value))
-            {
-                return MaxValue.Value;
-            }
-
-            var max = (Items ?? Array.Empty<TItem>())
-                .Select(item => (SegmentsSelectorOrThrow(item) ?? Array.Empty<TSegment>())
-                    .Select(SegmentValueSelectorOrThrow)
-                    .Select(SanitizeValue)
-                    .Sum())
-                .DefaultIfEmpty(0)
-                .Max();
-
-            return GetNiceMax(max);
-        }
-    }
+    internal double ComputedMaxValue => _computedMaxValue;
 
     protected override void OnParametersSet()
     {
@@ -133,11 +150,14 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
         var items = Items ?? Array.Empty<TItem>();
         var comparer = EqualityComparer<TItem>.Default;
         var selectedItem = SelectedItem;
-        var maxValue = ComputedMaxValue;
+        var maxValue = ResolveComputedMaxValue(items);
         var safeBarWidthRatio = Math.Clamp(BarWidthRatio, 0.1, 1.0);
         var bars = new List<BarState>(items.Count);
         var segments = new List<StackedBarChartSegment<TItem, TSegment>>();
+        var segmentIndexByKey = new Dictionary<string, int>(StringComparer.Ordinal);
         var legendMap = new Dictionary<string, LegendItem>(StringComparer.Ordinal);
+
+        _computedMaxValue = maxValue;
 
         for (var barIndex = 0; barIndex < items.Count; barIndex++)
         {
@@ -145,19 +165,19 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
             var label = LabelSelectorOrThrow(item);
             var isSelected = comparer.Equals(item, selectedItem);
             var itemSegments = SegmentsSelectorOrThrow(item) ?? Array.Empty<TSegment>();
-            var sanitizedValues = itemSegments.Select(SegmentValueSelectorOrThrow).Select(SanitizeValue).ToList();
-            var totalValue = sanitizedValues.Sum();
+            var sanitizedValues = new double[itemSegments.Count];
+            var totalValue = 0d;
+
+            for (var segmentIndex = 0; segmentIndex < itemSegments.Count; segmentIndex++)
+            {
+                var value = SanitizeValue(SegmentValueSelectorOrThrow(itemSegments[segmentIndex]));
+                sanitizedValues[segmentIndex] = value;
+                totalValue += value;
+            }
 
             var barRect = GetBarBounds(barIndex, items.Count, safeBarWidthRatio);
-            bars.Add(new BarState(
-                barIndex,
-                item,
-                label,
-                totalValue,
-                barRect,
-                Horizontal
-                    ? new SvgPoint(ChartAreaLeft - 8, barRect.Y + barRect.Height / 2)
-                    : new SvgPoint(barRect.X + barRect.Width / 2, ChartAreaBottom + 20)));
+            var hoverRect = GetBarHoverBounds(barIndex, items.Count);
+            var barSegments = new List<StackedBarChartSegment<TItem, TSegment>>();
 
             var runningOffset = 0d;
             for (var segmentIndex = 0; segmentIndex < itemSegments.Count; segmentIndex++)
@@ -195,17 +215,37 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
                     rect,
                     $"{label}, {segmentLabel}: {value.ToString(ValueFormat, CultureInfo.InvariantCulture)}",
                     isSelected,
-                    _hoveredSegmentIndex == segments.Count,
-                    _focusedSegmentIndex == segments.Count);
+                    false,
+                    false);
 
                 segments.Add(chartSegment);
+                segmentIndexByKey[chartSegment.Key] = segments.Count - 1;
+                barSegments.Add(chartSegment);
                 runningOffset += value;
             }
+
+            bars.Add(new BarState(
+                barIndex,
+                item,
+                label,
+                totalValue,
+                barRect,
+                hoverRect,
+                Horizontal
+                    ? new SvgPoint(ChartAreaLeft - 8, barRect.Y + barRect.Height / 2)
+                    : new SvgPoint(barRect.X + barRect.Width / 2, ChartAreaBottom + 20),
+                new ReadOnlyCollection<StackedBarChartSegment<TItem, TSegment>>(barSegments)));
         }
 
         _bars = new ReadOnlyCollection<BarState>(bars);
         _segments = new ReadOnlyCollection<StackedBarChartSegment<TItem, TSegment>>(segments);
+        _segmentIndexByKey = segmentIndexByKey;
         _legendItems = new ReadOnlyCollection<LegendItem>(legendMap.Values.ToList());
+
+        if (_hoveredBarIndex is int hoveredBar && !_bars.Any(bar => bar.Index == hoveredBar && bar.Segments.Count > 0))
+        {
+            _hoveredBarIndex = null;
+        }
 
         if (_hoveredSegmentIndex is int hovered && (hovered < 0 || hovered >= _segments.Count))
         {
@@ -221,6 +261,23 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
         {
             _hoveredLegendLabel = null;
         }
+    }
+
+    private SvgRect GetBarHoverBounds(int barIndex, int itemCount)
+    {
+        if (itemCount <= 0)
+        {
+            return new SvgRect(0, 0, 0, 0);
+        }
+
+        if (Horizontal)
+        {
+            var step = ChartAreaHeight / itemCount;
+            return new SvgRect(ChartAreaLeft, ChartAreaTop + barIndex * step, ChartAreaWidth, step);
+        }
+
+        var widthStep = ChartAreaWidth / itemCount;
+        return new SvgRect(ChartAreaLeft + barIndex * widthStep, ChartAreaTop, widthStep, ChartAreaHeight);
     }
 
     private SvgRect GetBarBounds(int barIndex, int itemCount, double safeBarWidthRatio)
@@ -298,6 +355,11 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 
     private async Task HandleHoverLeaveAsync(StackedBarChartSegment<TItem, TSegment> segment)
     {
+        if (UsesSharedTooltip)
+        {
+            return;
+        }
+
         var index = FindSegmentIndex(segment);
         if (index < 0)
         {
@@ -348,6 +410,43 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
         await RefreshChartAsync();
     }
 
+    private async Task HandleBarEnterAsync(BarState bar)
+    {
+        if (!UsesSharedTooltip || bar.Segments.Count == 0 || _hoveredBarIndex == bar.Index)
+        {
+            return;
+        }
+
+        _hoveredBarIndex = bar.Index;
+
+        if (HoveredSegment is not null &&
+            HoveredSegment.BarIndex != bar.Index &&
+            FocusedSegment?.Key != HoveredSegment.Key)
+        {
+            _hoveredSegmentIndex = null;
+        }
+
+        await RefreshChartAsync();
+    }
+
+    private async Task HandleBarLeaveAsync(BarState bar)
+    {
+        if (!UsesSharedTooltip || _hoveredBarIndex != bar.Index)
+        {
+            return;
+        }
+
+        _hoveredBarIndex = null;
+
+        if (HoveredSegment?.BarIndex == bar.Index &&
+            FocusedSegment?.Key != HoveredSegment.Key)
+        {
+            _hoveredSegmentIndex = null;
+        }
+
+        await RefreshChartAsync();
+    }
+
     private async Task HandleSelectAsync(StackedBarChartSegment<TItem, TSegment> segment)
     {
         SelectedItem = segment.Item;
@@ -387,30 +486,133 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
     }
 
     private async Task RefreshChartAsync()
+        => await InvokeAsync(StateHasChanged);
+
+    private SvgPoint GetTooltipAnchor(StackedBarChartSegment<TItem, TSegment> segment)
     {
-        RebuildChartState();
-        await InvokeAsync(StateHasChanged);
+        if (Horizontal)
+        {
+            return new SvgPoint(
+                segment.Rect.X + segment.Rect.Width / 2,
+                segment.Rect.Y + segment.Rect.Height / 2);
+        }
+
+        if (ConstrainTooltipToChartBounds)
+        {
+            var cornerY = segment.Rect.Y + Math.Min(segment.Rect.Height * 0.35, 14);
+            return new SvgPoint(segment.Rect.X + segment.Rect.Width, Math.Max(cornerY, 8));
+        }
+
+        var left = segment.Rect.X + segment.Rect.Width / 2;
+        var top = Math.Max(segment.Rect.Y - 12, 8);
+
+        return new(left, top);
     }
 
     private string GetTooltipStyle(StackedBarChartSegment<TItem, TSegment> segment)
     {
-        var left = segment.Rect.X + segment.Rect.Width / 2;
-        var top = Horizontal
-            ? segment.Rect.Y + segment.Rect.Height / 2
-            : Math.Max(segment.Rect.Y - 12, 8);
-
-        return $"left: {Fmt(left)}px; top: {Fmt(top)}px;";
+        var anchor = GetTooltipAnchor(segment);
+        return $"left: {Fmt(anchor.X)}px; top: {Fmt(anchor.Y)}px;";
     }
+
+    private string GetTooltipStyle(StackedBarTooltipContext<TItem, TSegment> tooltip) =>
+        $"left: {Fmt(tooltip.Anchor.X)}px; top: {Fmt(tooltip.Anchor.Y)}px;";
 
     private string GetSegmentClasses(StackedBarChartSegment<TItem, TSegment> segment)
     {
         var classes = new List<string> { "stacked-segment" };
-        if (segment.IsHovered) classes.Add("is-hovered");
-        if (segment.IsFocused) classes.Add("is-focused");
-        if (segment.IsSelected) classes.Add("is-selected");
+        if (IsHovered(segment)) classes.Add("is-hovered");
+        if (IsFocused(segment)) classes.Add("is-focused");
+        if (IsSelected(segment)) classes.Add("is-selected");
         if (IsLegendMatch(segment.SegmentLabel)) classes.Add("is-legend-active");
         return string.Join(" ", classes);
     }
+
+    private StackedBarTooltipContext<TItem, TSegment> CreateSharedTooltipContext(BarState bar)
+    {
+        var activeSegment = TooltipActiveSegment;
+        var rows = bar.Segments
+            .Select(segment => new StackedBarTooltipRow<TItem, TSegment>(
+                segment.Item,
+                segment.Segment,
+                segment.BarIndex,
+                segment.SegmentIndex,
+                segment.BarLabel,
+                segment.SegmentLabel,
+                segment.Value,
+                segment.TotalValue,
+                segment.Fill,
+                string.Equals(segment.Key, activeSegment?.Key, StringComparison.Ordinal)))
+            .ToList();
+
+        return new StackedBarTooltipContext<TItem, TSegment>(
+            bar.Item,
+            bar.Index,
+            bar.Label,
+            bar.TotalValue,
+            rows,
+            activeSegment,
+            GetSharedTooltipAnchor(bar),
+            Horizontal);
+    }
+
+    private SvgPoint GetSharedTooltipAnchor(BarState bar)
+    {
+        if (bar.Segments.Count == 0)
+        {
+            return new SvgPoint(bar.HoverRect.X + bar.HoverRect.Width / 2, bar.HoverRect.Y);
+        }
+
+        if (Horizontal)
+        {
+            var right = bar.Segments.Max(segment => segment.Rect.X + segment.Rect.Width);
+            var centerY = bar.HoverRect.Y + bar.HoverRect.Height / 2;
+            return new SvgPoint(Math.Min(right + 12, ChartAreaRight - 8), centerY);
+        }
+
+        if (ConstrainTooltipToChartBounds)
+        {
+            var activeSegment = TooltipActiveSegment;
+            if (activeSegment is not null)
+            {
+                return GetTooltipAnchor(activeSegment);
+            }
+
+            var right = bar.HoverRect.X + bar.HoverRect.Width;
+            var cornerTop = bar.Segments.Min(segment => segment.Rect.Y);
+            return new SvgPoint(
+                Math.Min(right, ChartAreaRight - 8),
+                Math.Max(cornerTop + 12, 8));
+        }
+
+        var left = bar.HoverRect.X + bar.HoverRect.Width / 2;
+        var top = bar.Segments.Min(segment => segment.Rect.Y);
+        return new SvgPoint(left, Math.Max(top - 12, 8));
+    }
+
+    private ChartTooltipPlacement GetSegmentTooltipPlacement() =>
+        Horizontal || ConstrainTooltipToChartBounds
+            ? ChartTooltipPlacement.Right
+            : ChartTooltipPlacement.Above;
+
+    private string GetSegmentTooltipLegacyPlacementClass() =>
+        Horizontal
+            ? "chart-tooltip--side"
+            : ConstrainTooltipToChartBounds
+                ? "chart-tooltip--corner"
+                : "chart-tooltip--top";
+
+    private ChartTooltipPlacement GetSharedTooltipPlacement(bool horizontalAnchor) =>
+        horizontalAnchor || ConstrainTooltipToChartBounds
+            ? ChartTooltipPlacement.Right
+            : ChartTooltipPlacement.Above;
+
+    private string GetSharedTooltipLegacyPlacementClass(bool horizontalAnchor) =>
+        horizontalAnchor
+            ? "chart-tooltip--side"
+            : ConstrainTooltipToChartBounds
+                ? "chart-tooltip--corner"
+                : "chart-tooltip--top";
 
     private string GetLegendItemClasses(LegendItem item)
     {
@@ -424,17 +626,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
         string.Equals(_hoveredLegendLabel, label, StringComparison.Ordinal);
 
     private int FindSegmentIndex(StackedBarChartSegment<TItem, TSegment> segment)
-    {
-        for (var i = 0; i < _segments.Count; i++)
-        {
-            if (_segments[i].Key == segment.Key)
-            {
-                return i;
-            }
-        }
-
-        return -1;
-    }
+        => _segmentIndexByKey.GetValueOrDefault(segment.Key, -1);
 
     private IEnumerable<string> GetShellClasses()
     {
@@ -458,6 +650,23 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 
     private ChartPointInteraction<TItem> ToInteraction(StackedBarChartSegment<TItem, TSegment> segment) =>
         new(segment.Item, segment.BarIndex, $"{segment.BarLabel} - {segment.SegmentLabel}", segment.Value);
+
+    private bool IsSelected(StackedBarChartSegment<TItem, TSegment> segment) =>
+        EqualityComparer<TItem>.Default.Equals(segment.Item, SelectedItem);
+
+    private bool IsHovered(StackedBarChartSegment<TItem, TSegment> segment) =>
+        UsesSharedTooltip
+            ? TooltipBarIndex == segment.BarIndex
+            : _hoveredSegmentIndex is int index &&
+              index >= 0 &&
+              index < _segments.Count &&
+              string.Equals(_segments[index].Key, segment.Key, StringComparison.Ordinal);
+
+    private bool IsFocused(StackedBarChartSegment<TItem, TSegment> segment) =>
+        _focusedSegmentIndex is int index &&
+        index >= 0 &&
+        index < _segments.Count &&
+        string.Equals(_segments[index].Key, segment.Key, StringComparison.Ordinal);
 
     private IReadOnlyList<TSegment> SegmentsSelectorOrThrow(TItem item) => SegmentsSelector!(item);
 
@@ -526,13 +735,33 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
         return $"#{Math.Max((int)(r * 0.78), 0):X2}{Math.Max((int)(g * 0.78), 0):X2}{Math.Max((int)(b * 0.78), 0):X2}";
     }
 
+    private double ResolveComputedMaxValue(IReadOnlyList<TItem> items)
+    {
+        if (MaxValue.HasValue && MaxValue.Value > 0 && double.IsFinite(MaxValue.Value))
+        {
+            return MaxValue.Value;
+        }
+
+        var max = items
+            .Select(item => (SegmentsSelectorOrThrow(item) ?? Array.Empty<TSegment>())
+                .Select(SegmentValueSelectorOrThrow)
+                .Select(SanitizeValue)
+                .Sum())
+            .DefaultIfEmpty(0)
+            .Max();
+
+        return GetNiceMax(max);
+    }
+
     internal sealed record BarState(
         int Index,
         TItem Item,
         string Label,
         double TotalValue,
         SvgRect Rect,
-        SvgPoint AxisLabelPoint);
+        SvgRect HoverRect,
+        SvgPoint AxisLabelPoint,
+        IReadOnlyList<StackedBarChartSegment<TItem, TSegment>> Segments);
 
     internal sealed record LegendItem(
         string Label,

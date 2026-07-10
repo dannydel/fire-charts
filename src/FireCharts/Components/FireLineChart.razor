@@ -112,14 +112,14 @@
                                   vector-effect="non-scaling-stroke"
                                   style="@GetPathStyle(series)" />
 
-                            @foreach (var point in series.VisiblePoints)
+                            @foreach (var point in GetVisiblePoints(series))
                             {
                                 <g @key="point.Key"
                                    class="@GetPointClasses(point)"
                                    tabindex="0"
                                    role="button"
                                    aria-label="@point.AccessibleLabel"
-                                   aria-selected="@point.IsSelected"
+                                   aria-selected="@IsSelected(point)"
                                    @onmouseover="() => HandleHoverAsync(point)"
                                    @onmouseout="() => HandleHoverLeaveAsync(point)"
                                    @onfocus="() => HandleFocusAsync(point)"
@@ -144,8 +144,13 @@
         <OverlayContent>
             @if (ShowTooltip && HoveredPoint is not null)
             {
-                <div class="chart-tooltip"
-                     style="@GetTooltipStyle(HoveredPoint)">
+                <ChartTooltip AnchorX="@HoveredPoint.Coordinates.X"
+                              AnchorY="@HoveredPoint.Coordinates.Y"
+                              ConstrainToBounds="@ConstrainTooltipToChartBounds"
+                              MeasurementKey="@HoveredPoint"
+                              PreferredPlacement="ChartTooltipPlacement.Above"
+                              LegacyStyle="@GetTooltipStyle(HoveredPoint)"
+                              Offset="10">
                     @if (TooltipTemplate is not null)
                     {
                         @TooltipTemplate(HoveredPoint)
@@ -156,7 +161,7 @@
                         <div class="tooltip-label">@HoveredPoint.Label</div>
                         <div class="tooltip-value">@HoveredPoint.Y.ToString(ValueFormat, CultureInfo.InvariantCulture)</div>
                     }
-                </div>
+                </ChartTooltip>
             }
         </OverlayContent>
     </ChartSurface>

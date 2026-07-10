@@ -1,5 +1,5 @@
-using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Text.Json;
 using FireCharts.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -8,7 +8,10 @@ namespace FireCharts.Components;
 
 public partial class FireHeatmapChart<TItem> : ComponentBase
 {
+    private static readonly JsonSerializerOptions CanvasSerializerOptions = new(JsonSerializerDefaults.Web);
+
     private readonly record struct CellKey(int RowIndex, int ColumnIndex);
+    private readonly record struct AxisGroup(string Key, string Label, double Order);
     private sealed record RawCell(
         TItem Item,
         string RowKey,
@@ -20,26 +23,13 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
         double Value,
         string? ExplicitColor,
         string AccessibleLabel);
-    private sealed record RowDefinition(string Key, string Label, double Order, int Index, double Y, double Height)
-    {
-        public double CenterY => Y + (Height / 2);
-    }
-    private sealed record ColumnDefinition(string Key, string Label, double Order, int Index, double X, double Width)
-    {
-        public double CenterX => X + (Width / 2);
-    }
-    private sealed record PlaceholderCell(SvgRect Rect, string Fill);
 
-    private IReadOnlyList<HeatmapCell<TItem>> _cells = Array.Empty<HeatmapCell<TItem>>();
-    private IReadOnlyList<PlaceholderCell> _placeholderCells = Array.Empty<PlaceholderCell>();
-    private IReadOnlyList<RowDefinition> _rows = Array.Empty<RowDefinition>();
-    private IReadOnlyList<ColumnDefinition> _columns = Array.Empty<ColumnDefinition>();
+    private HeatmapRenderData<TItem> _renderData = HeatmapRenderData<TItem>.Empty;
+    private Dictionary<CellKey, HeatmapCell<TItem>> _cellsByKey = [];
     private CellKey? _hoveredCellKey;
     private CellKey? _focusedCellKey;
     private double? _renderWidth;
     private double? _renderHeight;
-    private double _minValue;
-    private double _maxValue;
 
     [Parameter] public string Title { get; set; } = "Heatmap Chart";
     [Parameter] public string Description { get; set; } = "";
@@ -63,8 +53,11 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
     [Parameter] public double Height { get; set; } = 420;
     [Parameter] public bool Responsive { get; set; }
     [Parameter] public bool ShowTooltip { get; set; } = true;
+    [Parameter] public bool ConstrainTooltipToChartBounds { get; set; }
     [Parameter] public bool ShowAxisLabels { get; set; } = true;
     [Parameter] public bool ShowLegend { get; set; } = true;
+    [Parameter] public HeatmapRenderMode RenderMode { get; set; } = HeatmapRenderMode.Svg;
+    [Parameter] public int AutoCanvasCellThreshold { get; set; } = 400;
     [Parameter] public double CellGap { get; set; } = 3;
     [Parameter] public double CornerRadius { get; set; } = 4;
     [Parameter] public string LowColor { get; set; } = "#fff0d7";
@@ -77,10 +70,10 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
     private double PaddingBottom => ShowAxisLabels ? 62 : 18;
     private double PaddingLeft => ShowAxisLabels ? 92 : 18;
 
-    private IReadOnlyList<HeatmapCell<TItem>> Cells => _cells;
-    private IReadOnlyList<PlaceholderCell> PlaceholderCells => _placeholderCells;
-    private IReadOnlyList<RowDefinition> Rows => _rows;
-    private IReadOnlyList<ColumnDefinition> Columns => _columns;
+    private IReadOnlyList<HeatmapCell<TItem>> Cells => _renderData.Cells;
+    private IReadOnlyList<HeatmapPlaceholderCell> PlaceholderCells => _renderData.PlaceholderCells;
+    private IReadOnlyList<HeatmapRowDefinition> Rows => _renderData.Rows;
+    private IReadOnlyList<HeatmapColumnDefinition> Columns => _renderData.Columns;
     private HeatmapCell<TItem>? HoveredCell => FindCell(_hoveredCellKey);
     private double SafeWidth => Math.Max(_renderWidth ?? Width, 1);
     private double SafeHeight => Math.Max(_renderHeight ?? Height, 1);
@@ -92,8 +85,50 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
     private double ChartAreaHeight => Math.Max(ChartAreaBottom - ChartAreaTop, 1);
     private double SafeCellGap => Math.Clamp(CellGap, 0, 12);
     private double SafeCornerRadius => Math.Clamp(CornerRadius, 0, 16);
-    private string LegendMinLabel => _minValue.ToString(ValueFormat, CultureInfo.InvariantCulture);
-    private string LegendMaxLabel => _maxValue.ToString(ValueFormat, CultureInfo.InvariantCulture);
+    private int MatrixCellCount => Rows.Count * Columns.Count;
+    private double EstimatedCellExtent => Rows.Count == 0 || Columns.Count == 0
+        ? 0
+        : Math.Min(
+            Math.Max((ChartAreaWidth / Columns.Count) - SafeCellGap, 1),
+            Math.Max((ChartAreaHeight / Rows.Count) - SafeCellGap, 1));
+    private bool UseDenseCanvasFallback => ActiveRenderMode is HeatmapRenderMode.Canvas && EstimatedCellExtent <= 6;
+    private double CanvasCornerRadius => UseDenseCanvasFallback ? 0 : SafeCornerRadius;
+    private HeatmapRenderMode ActiveRenderMode => ResolveRenderMode();
+    private string CanvasRenderRequestJson => JsonSerializer.Serialize(
+        new HeatmapCanvasRenderRequest(
+            ChartAreaWidth,
+            ChartAreaHeight,
+            CanvasCornerRadius,
+            UseDenseCanvasFallback
+                ? Array.Empty<HeatmapCanvasRenderRect>()
+                : PlaceholderCells.Select(cell => new HeatmapCanvasRenderRect(
+                    -1,
+                    -1,
+                    cell.Rect.X - ChartAreaLeft,
+                    cell.Rect.Y - ChartAreaTop,
+                    cell.Rect.Width,
+                    cell.Rect.Height,
+                    cell.Fill)).ToArray(),
+            Cells.Select(cell => new HeatmapCanvasRenderRect(
+                cell.RowIndex,
+                cell.ColumnIndex,
+                cell.Rect.X - ChartAreaLeft,
+                cell.Rect.Y - ChartAreaTop,
+                cell.Rect.Width,
+                cell.Rect.Height,
+                cell.Fill)).ToArray()),
+        CanvasSerializerOptions);
+    private string CanvasInteractionStateJson => JsonSerializer.Serialize(
+        new HeatmapCanvasInteractionState(
+            ToCanvasKey(GetSelectedCellKey()),
+            ToCanvasKey(_hoveredCellKey),
+            ToCanvasKey(_focusedCellKey)),
+        CanvasSerializerOptions);
+    private string CanvasInteractionLayerStyle =>
+        $"left: {Fmt(ChartAreaLeft)}px; top: {Fmt(ChartAreaTop)}px; width: {Fmt(ChartAreaWidth)}px; height: {Fmt(ChartAreaHeight)}px;";
+    private string CanvasAriaLabel => (FindCell(_focusedCellKey) ?? HoveredCell ?? Cells.FirstOrDefault())?.AccessibleLabel ?? Title;
+    private string LegendMinLabel => _renderData.MinValue.ToString(ValueFormat, CultureInfo.InvariantCulture);
+    private string LegendMaxLabel => _renderData.MaxValue.ToString(ValueFormat, CultureInfo.InvariantCulture);
     private string LegendScaleStyle => $"--legend-low: {LowColor}; --legend-high: {HighColor};";
 
     protected override void OnParametersSet()
@@ -117,31 +152,33 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
         var rawCells = BuildRawCells();
         if (rawCells.Count == 0)
         {
-            _cells = Array.Empty<HeatmapCell<TItem>>();
-            _placeholderCells = Array.Empty<PlaceholderCell>();
-            _rows = Array.Empty<RowDefinition>();
-            _columns = Array.Empty<ColumnDefinition>();
-            _minValue = 0;
-            _maxValue = 0;
+            _renderData = HeatmapRenderData<TItem>.Empty;
+            _cellsByKey = [];
             _hoveredCellKey = null;
             _focusedCellKey = null;
             return;
         }
 
-        _minValue = rawCells.Min(cell => cell.Value);
-        _maxValue = rawCells.Max(cell => cell.Value);
+        _renderData = BuildRenderData(rawCells);
+        NormalizeInteractionState();
+    }
 
+    private HeatmapRenderData<TItem> BuildRenderData(IReadOnlyList<RawCell> rawCells)
+    {
+        var minValue = rawCells.Min(cell => cell.Value);
+        var maxValue = rawCells.Max(cell => cell.Value);
         var rows = BuildRows(rawCells);
         var columns = BuildColumns(rawCells);
-        var cellsByKey = new Dictionary<(string RowKey, string ColumnKey), RawCell>();
+        var rawCellsByKey = new Dictionary<(string RowKey, string ColumnKey), RawCell>();
 
         foreach (var cell in rawCells)
         {
-            cellsByKey[(cell.RowKey, cell.ColumnKey)] = cell;
+            rawCellsByKey[(cell.RowKey, cell.ColumnKey)] = cell;
         }
 
-        var placeholderCells = new List<PlaceholderCell>(rows.Count * columns.Count);
+        var placeholderCells = new List<HeatmapPlaceholderCell>(rows.Count * columns.Count);
         var renderedCells = new List<HeatmapCell<TItem>>(rawCells.Count);
+        var renderedCellsByKey = new Dictionary<CellKey, HeatmapCell<TItem>>(rawCells.Count);
         var comparer = EqualityComparer<TItem>.Default;
 
         foreach (var row in rows)
@@ -149,15 +186,15 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
             foreach (var column in columns)
             {
                 var rect = GetCellRect(row, column);
-                if (!cellsByKey.TryGetValue((row.Key, column.Key), out var rawCell))
+                if (!rawCellsByKey.TryGetValue((row.Key, column.Key), out var rawCell))
                 {
-                    placeholderCells.Add(new PlaceholderCell(rect, MissingCellColor));
+                    placeholderCells.Add(new HeatmapPlaceholderCell(rect, MissingCellColor));
                     continue;
                 }
 
                 var key = new CellKey(row.Index, column.Index);
-                var fill = rawCell.ExplicitColor ?? InterpolateColor(rawCell.Value, _minValue, _maxValue, LowColor, HighColor);
-                renderedCells.Add(new HeatmapCell<TItem>(
+                var fill = rawCell.ExplicitColor ?? InterpolateColor(rawCell.Value, minValue, maxValue, LowColor, HighColor);
+                var cell = new HeatmapCell<TItem>(
                     rawCell.Item,
                     row.Index,
                     column.Index,
@@ -171,22 +208,29 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
                     comparer.Equals(rawCell.Item, SelectedItem),
                     _hoveredCellKey == key,
                     _focusedCellKey == key,
-                    rawCell.AccessibleLabel));
+                    rawCell.AccessibleLabel);
+                renderedCells.Add(cell);
+                renderedCellsByKey[key] = cell;
             }
         }
 
-        _rows = new ReadOnlyCollection<RowDefinition>(rows);
-        _columns = new ReadOnlyCollection<ColumnDefinition>(columns);
-        _placeholderCells = new ReadOnlyCollection<PlaceholderCell>(placeholderCells);
-        _cells = new ReadOnlyCollection<HeatmapCell<TItem>>(renderedCells);
-        NormalizeInteractionState();
+        _cellsByKey = renderedCellsByKey;
+
+        return new HeatmapRenderData<TItem>(
+            renderedCells.ToArray(),
+            placeholderCells.ToArray(),
+            rows.ToArray(),
+            columns.ToArray(),
+            minValue,
+            maxValue);
     }
 
     private List<RawCell> BuildRawCells()
     {
-        var rawCells = new List<RawCell>();
+        var items = Items ?? Array.Empty<TItem>();
+        var rawCells = new List<RawCell>(items.Count);
 
-        foreach (var item in Items ?? Array.Empty<TItem>())
+        foreach (var item in items)
         {
             var rawValue = ValueSelector!(item);
             if (!double.IsFinite(rawValue))
@@ -218,32 +262,41 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
         return rawCells;
     }
 
-    private List<RowDefinition> BuildRows(IReadOnlyList<RawCell> rawCells)
+    private List<HeatmapRowDefinition> BuildRows(IReadOnlyList<RawCell> rawCells)
     {
-        var grouped = rawCells
-            .GroupBy(cell => cell.RowKey, StringComparer.Ordinal)
-            .Select(group =>
+        var groupedMap = new Dictionary<string, AxisGroup>(StringComparer.Ordinal);
+        foreach (var cell in rawCells)
+        {
+            if (groupedMap.TryGetValue(cell.RowKey, out var existing))
             {
-                var first = group.First();
-                return new
+                if (cell.RowOrder < existing.Order)
                 {
-                    first.RowKey,
-                    first.RowLabel,
-                    Order = group.Min(item => item.RowOrder)
-                };
-            })
-            .OrderBy(entry => entry.Order)
-            .ThenBy(entry => entry.RowLabel, StringComparer.Ordinal)
-            .ToList();
+                    groupedMap[cell.RowKey] = existing with { Order = cell.RowOrder };
+                }
+
+                continue;
+            }
+
+            groupedMap[cell.RowKey] = new AxisGroup(cell.RowKey, cell.RowLabel, cell.RowOrder);
+        }
+
+        var grouped = groupedMap.Values.ToList();
+        grouped.Sort(static (left, right) =>
+        {
+            var orderComparison = left.Order.CompareTo(right.Order);
+            return orderComparison != 0
+                ? orderComparison
+                : StringComparer.Ordinal.Compare(left.Label, right.Label);
+        });
 
         var rowHeight = ChartAreaHeight / grouped.Count;
-        var rows = new List<RowDefinition>(grouped.Count);
+        var rows = new List<HeatmapRowDefinition>(grouped.Count);
         for (var index = 0; index < grouped.Count; index++)
         {
             var row = grouped[index];
-            rows.Add(new RowDefinition(
-                row.RowKey,
-                row.RowLabel,
+            rows.Add(new HeatmapRowDefinition(
+                row.Key,
+                row.Label,
                 row.Order,
                 index,
                 ChartAreaTop + (index * rowHeight),
@@ -253,32 +306,41 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
         return rows;
     }
 
-    private List<ColumnDefinition> BuildColumns(IReadOnlyList<RawCell> rawCells)
+    private List<HeatmapColumnDefinition> BuildColumns(IReadOnlyList<RawCell> rawCells)
     {
-        var grouped = rawCells
-            .GroupBy(cell => cell.ColumnKey, StringComparer.Ordinal)
-            .Select(group =>
+        var groupedMap = new Dictionary<string, AxisGroup>(StringComparer.Ordinal);
+        foreach (var cell in rawCells)
+        {
+            if (groupedMap.TryGetValue(cell.ColumnKey, out var existing))
             {
-                var first = group.First();
-                return new
+                if (cell.ColumnOrder < existing.Order)
                 {
-                    first.ColumnKey,
-                    first.ColumnLabel,
-                    Order = group.Min(item => item.ColumnOrder)
-                };
-            })
-            .OrderBy(entry => entry.Order)
-            .ThenBy(entry => entry.ColumnLabel, StringComparer.Ordinal)
-            .ToList();
+                    groupedMap[cell.ColumnKey] = existing with { Order = cell.ColumnOrder };
+                }
+
+                continue;
+            }
+
+            groupedMap[cell.ColumnKey] = new AxisGroup(cell.ColumnKey, cell.ColumnLabel, cell.ColumnOrder);
+        }
+
+        var grouped = groupedMap.Values.ToList();
+        grouped.Sort(static (left, right) =>
+        {
+            var orderComparison = left.Order.CompareTo(right.Order);
+            return orderComparison != 0
+                ? orderComparison
+                : StringComparer.Ordinal.Compare(left.Label, right.Label);
+        });
 
         var columnWidth = ChartAreaWidth / grouped.Count;
-        var columns = new List<ColumnDefinition>(grouped.Count);
+        var columns = new List<HeatmapColumnDefinition>(grouped.Count);
         for (var index = 0; index < grouped.Count; index++)
         {
             var column = grouped[index];
-            columns.Add(new ColumnDefinition(
-                column.ColumnKey,
-                column.ColumnLabel,
+            columns.Add(new HeatmapColumnDefinition(
+                column.Key,
+                column.Label,
                 column.Order,
                 index,
                 ChartAreaLeft + (index * columnWidth),
@@ -288,7 +350,7 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
         return columns;
     }
 
-    private SvgRect GetCellRect(RowDefinition row, ColumnDefinition column)
+    private SvgRect GetCellRect(HeatmapRowDefinition row, HeatmapColumnDefinition column)
     {
         var gap = SafeCellGap;
         var x = column.X + (gap / 2);
@@ -387,10 +449,7 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
     }
 
     private async Task RefreshCellsAsync()
-    {
-        RebuildChart();
-        await InvokeAsync(StateHasChanged);
-    }
+        => await InvokeAsync(StateHasChanged);
 
     private HeatmapCell<TItem>? FindCell(CellKey? key)
     {
@@ -399,9 +458,7 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
             return null;
         }
 
-        return _cells.FirstOrDefault(cell =>
-            cell.RowIndex == key.Value.RowIndex &&
-            cell.ColumnIndex == key.Value.ColumnIndex);
+        return _cellsByKey.GetValueOrDefault(key.Value);
     }
 
     private void NormalizeInteractionState()
@@ -432,17 +489,17 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
     {
         var classes = new List<string> { "heatmap-cell-group" };
 
-        if (cell.IsHovered)
+        if (IsHovered(cell))
         {
             classes.Add("is-hovered");
         }
 
-        if (cell.IsFocused)
+        if (IsFocused(cell))
         {
             classes.Add("is-focused");
         }
 
-        if (cell.IsSelected)
+        if (IsSelected(cell))
         {
             classes.Add("is-selected");
         }
@@ -453,11 +510,13 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
     private static string GetCellStyle(HeatmapCell<TItem> cell) =>
         $"--cell-color: {cell.Fill};";
 
+    private SvgPoint GetTooltipAnchor(HeatmapCell<TItem> cell) =>
+        new(cell.Rect.X + (cell.Rect.Width / 2), Math.Max(cell.Rect.Y, 0));
+
     private string GetTooltipStyle(HeatmapCell<TItem> cell)
     {
-        var left = cell.Rect.X + (cell.Rect.Width / 2);
-        var top = Math.Max(cell.Rect.Y, 0);
-        return $"left: {Fmt(left)}px; top: {Fmt(top)}px;";
+        var anchor = GetTooltipAnchor(cell);
+        return $"left: {Fmt(anchor.X)}px; top: {Fmt(anchor.Y)}px;";
     }
 
     private static double SanitizeOrder(double? value, int fallback)
@@ -469,6 +528,162 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
 
         return fallback;
     }
+
+    private HeatmapRenderMode ResolveRenderMode() =>
+        RenderMode switch
+        {
+            HeatmapRenderMode.Canvas => HeatmapRenderMode.Canvas,
+            HeatmapRenderMode.Auto when MatrixCellCount >= Math.Max(AutoCanvasCellThreshold, 1) => HeatmapRenderMode.Canvas,
+            HeatmapRenderMode.Auto => HeatmapRenderMode.Svg,
+            _ => HeatmapRenderMode.Svg
+        };
+
+    private async Task HandleCanvasPointerMoveAsync((int RowIndex, int ColumnIndex) location)
+    {
+        var cell = FindCell(new CellKey(location.RowIndex, location.ColumnIndex));
+        if (cell is not null)
+        {
+            await HandleHoverAsync(cell);
+        }
+    }
+
+    private async Task HandleCanvasPointerLeaveAsync()
+    {
+        if (_focusedCellKey is not null && _hoveredCellKey == _focusedCellKey)
+        {
+            return;
+        }
+
+        if (_hoveredCellKey is null)
+        {
+            return;
+        }
+
+        _hoveredCellKey = null;
+        await RefreshCellsAsync();
+    }
+
+    private async Task HandleCanvasClickAsync((int RowIndex, int ColumnIndex) location)
+    {
+        var key = new CellKey(location.RowIndex, location.ColumnIndex);
+        var cell = FindCell(key);
+        if (cell is null)
+        {
+            return;
+        }
+
+        _focusedCellKey = key;
+        _hoveredCellKey = key;
+        SelectedItem = cell.Item;
+        await RefreshCellsAsync();
+
+        var activeCell = FindCell(key);
+        if (activeCell is not null)
+        {
+            await OnCellHoverChanged.InvokeAsync(ToInteraction(activeCell));
+        }
+
+        await SelectedItemChanged.InvokeAsync(cell.Item);
+        await OnCellClick.InvokeAsync(ToInteraction(cell));
+    }
+
+    private async Task HandleCanvasFocusAsync()
+    {
+        var targetCell = FindCell(_focusedCellKey) ?? GetSelectedCell() ?? Cells.FirstOrDefault();
+        if (targetCell is null)
+        {
+            return;
+        }
+
+        await HandleFocusAsync(targetCell);
+    }
+
+    private async Task HandleCanvasBlurAsync()
+    {
+        if (_focusedCellKey is null && _hoveredCellKey is null)
+        {
+            return;
+        }
+
+        _focusedCellKey = null;
+        _hoveredCellKey = null;
+        await RefreshCellsAsync();
+    }
+
+    private async Task HandleCanvasKeyDownAsync(KeyboardEventArgs args)
+    {
+        var currentCell = FindCell(_focusedCellKey) ?? GetSelectedCell() ?? Cells.FirstOrDefault();
+        if (currentCell is null)
+        {
+            return;
+        }
+
+        if (args.Key is "Enter" or " ")
+        {
+            await HandleCanvasClickAsync((currentCell.RowIndex, currentCell.ColumnIndex));
+            return;
+        }
+
+        HeatmapCell<TItem>? nextCell = args.Key switch
+        {
+            "ArrowLeft" => FindAdjacentCell(currentCell, 0, -1),
+            "ArrowRight" => FindAdjacentCell(currentCell, 0, 1),
+            "ArrowUp" => FindAdjacentCell(currentCell, -1, 0),
+            "ArrowDown" => FindAdjacentCell(currentCell, 1, 0),
+            _ => null
+        };
+
+        if (nextCell is null || nextCell.Key == currentCell.Key)
+        {
+            return;
+        }
+
+        await HandleFocusAsync(nextCell);
+    }
+
+    private HeatmapCell<TItem>? FindAdjacentCell(HeatmapCell<TItem> origin, int rowDelta, int columnDelta)
+    {
+        var rowIndex = origin.RowIndex + rowDelta;
+        var columnIndex = origin.ColumnIndex + columnDelta;
+
+        while (rowIndex >= 0 && rowIndex < Rows.Count && columnIndex >= 0 && columnIndex < Columns.Count)
+        {
+            var cell = FindCell(new CellKey(rowIndex, columnIndex));
+            if (cell is not null)
+            {
+                return cell;
+            }
+
+            rowIndex += rowDelta;
+            columnIndex += columnDelta;
+        }
+
+        return origin;
+    }
+
+    private HeatmapCell<TItem>? GetSelectedCell()
+    {
+        var comparer = EqualityComparer<TItem>.Default;
+        return Cells.FirstOrDefault(cell => comparer.Equals(cell.Item, SelectedItem));
+    }
+
+    private CellKey? GetSelectedCellKey()
+    {
+        var cell = GetSelectedCell();
+        return cell is null ? null : new CellKey(cell.RowIndex, cell.ColumnIndex);
+    }
+
+    private bool IsHovered(HeatmapCell<TItem> cell) =>
+        _hoveredCellKey == new CellKey(cell.RowIndex, cell.ColumnIndex);
+
+    private bool IsFocused(HeatmapCell<TItem> cell) =>
+        _focusedCellKey == new CellKey(cell.RowIndex, cell.ColumnIndex);
+
+    private bool IsSelected(HeatmapCell<TItem> cell) =>
+        EqualityComparer<TItem>.Default.Equals(cell.Item, SelectedItem);
+
+    private static string? ToCanvasKey(CellKey? key) =>
+        key is null ? null : $"{key.Value.RowIndex}:{key.Value.ColumnIndex}";
 
     private static string InterpolateColor(double value, double min, double max, string lowColor, string highColor)
     {

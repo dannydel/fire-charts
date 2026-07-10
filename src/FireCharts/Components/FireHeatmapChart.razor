@@ -32,7 +32,7 @@
                              Content="No data" />
                 }
             }
-            else
+            else if (ActiveRenderMode is HeatmapRenderMode.Svg)
             {
                 <g class="heatmap-grid">
                     <rect x="@Fmt(ChartAreaLeft)"
@@ -60,7 +60,7 @@
                            tabindex="0"
                            role="button"
                            aria-label="@cell.AccessibleLabel"
-                           aria-selected="@cell.IsSelected"
+                           aria-selected="@IsSelected(cell)"
                            @onmouseover="() => HandleHoverAsync(cell)"
                            @onmouseout="() => HandleHoverLeaveAsync(cell)"
                            @onfocus="() => HandleFocusAsync(cell)"
@@ -81,40 +81,77 @@
                         </g>
                     }
                 </g>
+            }
+            else if (ActiveRenderMode is HeatmapRenderMode.Canvas)
+            {
+                <g class="heatmap-grid">
+                    <rect x="@Fmt(ChartAreaLeft)"
+                          y="@Fmt(ChartAreaTop)"
+                          width="@Fmt(ChartAreaWidth)"
+                          height="@Fmt(ChartAreaHeight)"
+                          class="heatmap-frame" />
+                </g>
+            }
 
-                @if (ShowAxisLabels)
-                {
-                    <g class="heatmap-axis heatmap-axis--rows">
-                        @foreach (var row in Rows)
-                        {
-                            <SvgText X="@(ChartAreaLeft - 12)"
-                                     Y="@(row.CenterY)"
-                                     CssClass="axis-label heatmap-row-label"
-                                     TextAnchor="end"
-                                     DominantBaseline="middle"
-                                     Content="@row.Label" />
-                        }
-                    </g>
+            @if (Cells.Count > 0 && ShowAxisLabels)
+            {
+                <g class="heatmap-axis heatmap-axis--rows">
+                    @foreach (var row in Rows)
+                    {
+                        <SvgText X="@(ChartAreaLeft - 12)"
+                                 Y="@(row.CenterY)"
+                                 CssClass="axis-label heatmap-row-label"
+                                 TextAnchor="end"
+                                 DominantBaseline="middle"
+                                 Content="@row.Label" />
+                    }
+                </g>
 
-                    <g class="heatmap-axis heatmap-axis--columns">
-                        @foreach (var column in Columns)
-                        {
-                            <SvgText X="@(column.CenterX)"
-                                     Y="@(ChartAreaBottom + 28)"
-                                     CssClass="axis-label heatmap-column-label"
-                                     TextAnchor="end"
-                                     Transform="@($"rotate(-45 {Fmt(column.CenterX)} {Fmt(ChartAreaBottom + 28)})")"
-                                     Content="@column.Label" />
-                        }
-                    </g>
-                }
+                <g class="heatmap-axis heatmap-axis--columns">
+                    @foreach (var column in Columns)
+                    {
+                        <SvgText X="@(column.CenterX)"
+                                 Y="@(ChartAreaBottom + 28)"
+                                 CssClass="axis-label heatmap-column-label"
+                                 TextAnchor="end"
+                                 Transform="@($"rotate(-45 {Fmt(column.CenterX)} {Fmt(ChartAreaBottom + 28)})")"
+                                 Content="@column.Label" />
+                    }
+                </g>
             }
         </ChildContent>
         <OverlayContent>
+            @if (ActiveRenderMode is HeatmapRenderMode.Canvas && Cells.Count > 0)
+            {
+                <div class="heatmap-canvas-interaction-layer"
+                     style="@CanvasInteractionLayerStyle"
+                     tabindex="0"
+                     role="application"
+                     aria-label="@CanvasAriaLabel"
+                     @onfocus="HandleCanvasFocusAsync"
+                     @onblur="HandleCanvasBlurAsync"
+                     @onkeydown="HandleCanvasKeyDownAsync">
+                    <HeatmapCanvasLayer RenderRequestJson="@CanvasRenderRequestJson"
+                                        InteractionStateJson="@CanvasInteractionStateJson"
+                                        Width="@ChartAreaWidth"
+                                        Height="@ChartAreaHeight"
+                                        Left="0"
+                                        Top="0"
+                                        OnPointerMove="HandleCanvasPointerMoveAsync"
+                                        OnPointerLeave="HandleCanvasPointerLeaveAsync"
+                                        OnClick="HandleCanvasClickAsync" />
+                </div>
+            }
+
             @if (ShowTooltip && HoveredCell is not null)
             {
-                <div class="chart-tooltip"
-                     style="@GetTooltipStyle(HoveredCell)">
+                <ChartTooltip AnchorX="@GetTooltipAnchor(HoveredCell).X"
+                              AnchorY="@GetTooltipAnchor(HoveredCell).Y"
+                              ConstrainToBounds="@ConstrainTooltipToChartBounds"
+                              MeasurementKey="@HoveredCell"
+                              PreferredPlacement="ChartTooltipPlacement.Above"
+                              LegacyStyle="@GetTooltipStyle(HoveredCell)"
+                              Offset="10">
                     @if (TooltipTemplate is not null)
                     {
                         @TooltipTemplate(HoveredCell)
@@ -125,7 +162,7 @@
                         <div class="tooltip-label">@HoveredCell.ColumnLabel</div>
                         <div class="tooltip-value">@HoveredCell.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)</div>
                     }
-                </div>
+                </ChartTooltip>
             }
         </OverlayContent>
     </ChartSurface>

@@ -1,8 +1,8 @@
 using FireCharts.Models;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Web;
-using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Collections.ObjectModel;
+using Microsoft.AspNetCore.Components.Web;
 
 namespace FireCharts.Components;
 
@@ -45,6 +45,7 @@ public partial class FirePieChart<TItem> : ComponentBase
     [Parameter] public bool ShowSliceLabels { get; set; } = true;
     [Parameter] public PieChartLabelMode LabelMode { get; set; } = PieChartLabelMode.Overlay;
     [Parameter] public bool ShowTooltip { get; set; } = true;
+    [Parameter] public bool ConstrainTooltipToChartBounds { get; set; }
     [Parameter] public bool ShowCenterLabel { get; set; } = true;
     [Parameter] public bool ShowGuideRing { get; set; } = true;
     [Parameter] public string SliceColor { get; set; } = "#d94f3d";

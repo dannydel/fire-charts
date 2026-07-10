@@ -1,63 +1,91 @@
 ﻿@page "/weather"
+@page "/tablepatterns"
 @inject HttpClient Http
 
-<PageTitle>Weather</PageTitle>
+<PageTitle>Table Patterns</PageTitle>
 
-<section class="page-section">
-    <div class="section-heading">
-        <p class="section-kicker">Tabular data</p>
-        <h1>Readable tables can feel polished without hiding structure.</h1>
-        <p class="section-lede">This sample keeps the semantic HTML table intact while adding a clearer visual hierarchy and supportive context.</p>
-    </div>
-
+<PageIntro Kicker="Supporting tables"
+           Title="Charts land better when the surrounding table and summary UI are just as readable."
+           Description="FireCharts is chart-first, but real product pages still need semantic tables, exact values, and supporting detail. This page keeps the table treatment aligned with the rest of the showcase instead of feeling like a separate sample app.">
     <div class="stat-strip" aria-label="Table strengths">
-        <div class="stat-pill"><strong>Semantic</strong><span>Native table roles and header labels</span></div>
-        <div class="stat-pill"><strong>Contrast</strong><span>Soft surfaces with strong text color</span></div>
-        <div class="stat-pill"><strong>Scanning</strong><span>Row dividers and aligned numeric columns</span></div>
+        <div class="stat-pill"><strong>Semantic HTML</strong><span>Native table structure stays intact for auditing and assistive technology.</span></div>
+        <div class="stat-pill"><strong>Exact values</strong><span>Use the chart for scanning and the table for lookup, export, and verification.</span></div>
+        <div class="stat-pill"><strong>Visual continuity</strong><span>Supporting surfaces share the same spacing, typography, and contrast system as the charts.</span></div>
     </div>
+</PageIntro>
+
+<section class="feature-grid" aria-label="Table guidelines">
+    <article class="feature-card">
+        <p class="feature-card__eyebrow">Companion UI</p>
+        <h2>Let the chart do the fast reading.</h2>
+        <p>Use tables when the audience needs exact values, secondary attributes, or a printable/auditable reference below the visual summary.</p>
+    </article>
+
+    <article class="feature-card">
+        <p class="feature-card__eyebrow">Scanning</p>
+        <h2>Preserve column rhythm.</h2>
+        <p>Aligned numeric columns, restrained borders, and predictable row hover states make the table feel like part of the same product surface.</p>
+    </article>
+
+    <article class="feature-card">
+        <p class="feature-card__eyebrow">Composition</p>
+        <h2>Keep tables visually secondary.</h2>
+        <p>Charts should stay the visual anchor, with tables serving as the exact-value layer underneath or beside the chart.</p>
+    </article>
 </section>
 
 @if (forecasts == null)
 {
     <div class="callout-card" role="status" aria-live="polite">
-        <p class="metric-label">Loading forecast</p>
-        <p class="section-lede">Fetching sample weather data for the table view.</p>
+        <p class="metric-label">Loading example table</p>
+        <p class="section-lede">Fetching sample reference data for the companion table pattern.</p>
     </div>
 }
 else
 {
-    <section class="table-card">
-        <div class="table-card__header">
-            <div>
-                <p class="section-kicker">5-day outlook</p>
-                <h2>Weather snapshot</h2>
+    <section class="page-section">
+        <article class="table-card">
+            <div class="table-card__header">
+                <div>
+                    <p class="section-kicker">Companion table</p>
+                    <h2>Reference values beside a chart</h2>
+                </div>
+                <p class="table-card__summary">This is the kind of exact-value table that can sit below a line or bar chart once the user needs detail instead of just trend direction.</p>
             </div>
-            <p class="table-card__summary">The table maintains a clear reading order and puts numeric values on predictable columns for quick comparison.</p>
-        </div>
 
-        <table class="table table-modern">
-            <thead>
-                <tr>
-                    <th scope="col">Date</th>
-                    <th scope="col" aria-label="Temperature in Celsius">Temp. (C)</th>
-                    <th scope="col" aria-label="Temperature in Fahrenheit">Temp. (F)</th>
-                    <th scope="col">Summary</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var forecast in forecasts)
-                {
+            <table class="table table-modern">
+                <thead>
                     <tr>
-                        <td>@forecast.Date.ToShortDateString()</td>
-                        <td class="numeric-cell">@forecast.TemperatureC</td>
-                        <td class="numeric-cell">@forecast.TemperatureF</td>
-                        <td>@forecast.Summary</td>
+                        <th scope="col">Date</th>
+                        <th scope="col" aria-label="Temperature in Celsius">Temp. (C)</th>
+                        <th scope="col" aria-label="Temperature in Fahrenheit">Temp. (F)</th>
+                        <th scope="col">Summary</th>
                     </tr>
-                }
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    @foreach (var forecast in forecasts)
+                    {
+                        <tr>
+                            <td>@forecast.Date.ToShortDateString()</td>
+                            <td class="numeric-cell">@forecast.TemperatureC</td>
+                            <td class="numeric-cell">@forecast.TemperatureF</td>
+                            <td>@forecast.Summary</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </article>
     </section>
 }
+
+<ExampleDocsSection Title="Pair a chart with a semantic detail table"
+                    Description="Keep the chart as the overview and let the table handle exact lookup and longer-form supporting context."
+                    CodeTitle="Use a semantic table beside the chart"
+                    CodeDescription="The markup stays simple: a heading, a short summary, and a normal HTML table with clear column labels."
+                    CodeExample="@TableExample"
+                    ApiTitle="Layout habits worth keeping"
+                    ApiDescription="These are presentation patterns rather than FireCharts APIs, but they matter for how the library is actually showcased in product UI."
+                    ApiItems="@TablePatternItems" />
 
 @code {
     private WeatherForecast[]? forecasts;
@@ -66,6 +94,32 @@ else
     {
         forecasts = await Http.GetFromJsonAsync<WeatherForecast[]>("sample-data/weather.json");
     }
+
+    private string TableExample => """
+<section class="table-card">
+    <div class="table-card__header">
+        <div>
+            <p class="section-kicker">Companion table</p>
+            <h2>Reference values</h2>
+        </div>
+        <p class="table-card__summary">
+            Use the table for exact values once the chart has done the fast visual scan.
+        </p>
+    </div>
+
+    <table class="table table-modern">
+        ...
+    </table>
+</section>
+""";
+
+    private IReadOnlyList<ExampleApiItem> TablePatternItems { get; } =
+    [
+        new("Semantic table markup", "Keep native headings, rows, and column relationships instead of recreating table structure in divs."),
+        new("Numeric alignment", "Use tabular numbers and consistent column placement for exact-value comparison."),
+        new("TableCard header pattern", "Explain why the table exists so it feels like part of the chart workflow, not stray content."),
+        new("Secondary emphasis", "Let the chart remain the primary visual anchor and keep the table visually calmer.")
+    ];
 
     public class WeatherForecast
     {

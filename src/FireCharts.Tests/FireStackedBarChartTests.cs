@@ -163,6 +163,133 @@ public sealed class FireStackedBarChartTests : TestContext
     }
 
     [Fact]
+    public void SharedTooltipShowsAllRowsAndPersistsUntilLeavingBarOwner()
+    {
+        ChartPointInteraction<StackedDatum>? hovered = null;
+
+        var cut = RenderComponent<FireStackedBarChart<StackedDatum, SegmentDatum>>(parameters => parameters
+            .Add(component => component.Items, SampleData)
+            .Add(component => component.SegmentsSelector, item => item.Segments)
+            .Add(component => component.LabelSelector, item => item.Label)
+            .Add(component => component.SegmentValueSelector, segment => segment.Value)
+            .Add(component => component.SegmentLabelSelector, segment => segment.Label)
+            .Add(component => component.OnPointHoverChanged, (Action<ChartPointInteraction<StackedDatum>>)(interaction => hovered = interaction)));
+
+        var firstBar = cut.FindAll("g.stacked-bar")[0];
+        firstBar.TriggerEvent("onmouseenter", new MouseEventArgs());
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Single(cut.FindAll(".chart-tooltip"));
+            Assert.Contains("North", cut.Markup);
+            Assert.Contains("Total 44", cut.Markup);
+            Assert.Contains("Closed", cut.Markup);
+            Assert.Null(hovered);
+        });
+
+        cut.FindAll("g.stacked-segment")[0].MouseOver();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(hovered);
+            Assert.Equal("North - Open", hovered!.Label);
+            Assert.Equal(3, cut.FindAll("g.stacked-segment.is-hovered").Count);
+        });
+
+        cut.FindAll("g.stacked-segment")[0].MouseOut();
+
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".chart-tooltip")));
+
+        cut.FindAll("g.stacked-bar")[0].TriggerEvent("onmouseleave", new MouseEventArgs());
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".chart-tooltip")));
+    }
+
+    [Fact]
+    public void SharedTooltipTemplateTakesPrecedenceOverLegacyTemplate()
+    {
+        var cut = RenderComponent<FireStackedBarChart<StackedDatum, SegmentDatum>>(parameters => parameters
+            .Add(component => component.Items, SampleData)
+            .Add(component => component.SegmentsSelector, item => item.Segments)
+            .Add(component => component.LabelSelector, item => item.Label)
+            .Add(component => component.SegmentValueSelector, segment => segment.Value)
+            .Add(component => component.SegmentLabelSelector, segment => segment.Label)
+            .Add(component => component.TooltipTemplate, (RenderFragment<StackedBarChartSegment<StackedDatum, SegmentDatum>>)(segment => builder =>
+            {
+                builder.OpenElement(0, "div");
+                builder.AddAttribute(1, "class", "legacy-tooltip");
+                builder.AddContent(2, $"legacy-{segment.SegmentLabel}");
+                builder.CloseElement();
+            }))
+            .Add(component => component.SharedTooltipTemplate, (RenderFragment<StackedBarTooltipContext<StackedDatum, SegmentDatum>>)(context => builder =>
+            {
+                builder.OpenElement(0, "div");
+                builder.AddAttribute(1, "class", "shared-tooltip");
+                builder.AddContent(2, $"shared-{context.BarLabel}-{context.Rows.Count}");
+                builder.CloseElement();
+            })));
+
+        cut.FindAll("g.stacked-bar")[0].TriggerEvent("onmouseenter", new MouseEventArgs());
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains("shared-North-3", cut.Markup);
+            Assert.DoesNotContain("legacy-", cut.Markup);
+        });
+    }
+
+    [Fact]
+    public void ContainedVerticalSharedTooltipUsesCornerAnchoredSidePlacement()
+    {
+        var module = new RecordingJsObjectReference();
+        module.SetupHandler("resolveTooltipPosition", _ => """{"left":58,"top":74,"placement":"right"}""");
+
+        var runtime = new RecordingJsRuntime(module);
+        Services.AddSingleton<IJSRuntime>(runtime);
+
+        var cut = RenderComponent<FireStackedBarChart<StackedDatum, SegmentDatum>>(parameters => parameters
+            .Add(component => component.Items, SampleData)
+            .Add(component => component.SegmentsSelector, item => item.Segments)
+            .Add(component => component.LabelSelector, item => item.Label)
+            .Add(component => component.SegmentValueSelector, segment => segment.Value)
+            .Add(component => component.SegmentLabelSelector, segment => segment.Label)
+            .Add(component => component.ConstrainTooltipToChartBounds, true));
+
+        cut.FindAll("g.stacked-bar")[0].TriggerEvent("onmouseenter", new MouseEventArgs());
+
+        cut.WaitForAssertion(() =>
+        {
+            var tooltip = cut.Find(".chart-tooltip");
+            Assert.Contains("chart-tooltip--contained", tooltip.GetAttribute("class"));
+            Assert.Contains("chart-tooltip--placement-right", tooltip.GetAttribute("class"));
+            Assert.Equal("left: 58.0px; top: 74.0px;", tooltip.GetAttribute("style"));
+        });
+
+        var invocation = Assert.Single(module.Invocations, call => call.Identifier == "resolveTooltipPosition");
+        Assert.Equal("right", invocation.Arguments[4]);
+    }
+
+    [Fact]
+    public void SegmentTooltipModePreservesLegacyMouseoutBehavior()
+    {
+        var cut = RenderComponent<FireStackedBarChart<StackedDatum, SegmentDatum>>(parameters => parameters
+            .Add(component => component.Items, SampleData)
+            .Add(component => component.SegmentsSelector, item => item.Segments)
+            .Add(component => component.LabelSelector, item => item.Label)
+            .Add(component => component.SegmentValueSelector, segment => segment.Value)
+            .Add(component => component.SegmentLabelSelector, segment => segment.Label)
+            .Add(component => component.TooltipInteractionMode, BarTooltipInteractionMode.Segment));
+
+        cut.FindAll("g.stacked-segment")[0].MouseOver();
+
+        cut.WaitForAssertion(() => Assert.Single(cut.FindAll(".chart-tooltip")));
+
+        cut.FindAll("g.stacked-segment")[0].MouseOut();
+
+        cut.WaitForAssertion(() => Assert.Empty(cut.FindAll(".chart-tooltip")));
+    }
+
+    [Fact]
     public void HoverFocusAndKeyboardSelectionUpdateInteractionState()
     {
         ChartPointInteraction<StackedDatum>? hovered = null;

@@ -1,16 +1,20 @@
 @namespace FireCharts.Example.Components
 
 <section class="@SectionClass">
-    <div class="section-heading">
+    <div class="page-intro">
+        <div class="section-heading page-intro__heading">
         <p class="section-kicker">@Kicker</p>
         <h1>@Title</h1>
         <p class="section-lede">@Description</p>
-    </div>
+        </div>
 
-    @if (ChildContent is not null)
-    {
-        @ChildContent
-    }
+        @if (ChildContent is not null)
+        {
+            <div class="page-intro__support">
+                @ChildContent
+            </div>
+        }
+    </div>
 </section>
 
 @code {
@@ -20,5 +24,5 @@
     [Parameter] public bool Compact { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
-    private string SectionClass => Compact ? "page-section page-section--compact" : "page-section";
+    private string SectionClass => Compact ? "page-section page-section--compact page-section--intro" : "page-section page-section--intro";
 }

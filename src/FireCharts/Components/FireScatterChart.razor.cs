@@ -37,6 +37,7 @@ public partial class FireScatterChart<TItem> : ComponentBase
     private IReadOnlyList<RenderedSeries> _seriesStates = Array.Empty<RenderedSeries>();
     private IReadOnlyList<AxisTick> _xTicks = Array.Empty<AxisTick>();
     private IReadOnlyList<AxisTick> _yTicks = Array.Empty<AxisTick>();
+    private Dictionary<PointKey, ScatterChartPoint<TItem>> _pointsByKey = [];
     private PointKey? _hoveredPointKey;
     private PointKey? _focusedPointKey;
     private int? _legendSeriesIndex;
@@ -67,6 +68,7 @@ public partial class FireScatterChart<TItem> : ComponentBase
     [Parameter] public bool ShowAxisLabels { get; set; } = true;
     [Parameter] public bool ShowLegend { get; set; } = true;
     [Parameter] public bool ShowTooltip { get; set; } = true;
+    [Parameter] public bool ConstrainTooltipToChartBounds { get; set; }
     [Parameter] public int XAxisTickCount { get; set; } = 5;
     [Parameter] public int YAxisTickCount { get; set; } = 5;
     [Parameter] public string PointColor { get; set; } = "#d94f3d";
@@ -123,6 +125,7 @@ public partial class FireScatterChart<TItem> : ComponentBase
             _seriesStates = Array.Empty<RenderedSeries>();
             _xTicks = Array.Empty<AxisTick>();
             _yTicks = Array.Empty<AxisTick>();
+            _pointsByKey = [];
             return;
         }
 
@@ -134,6 +137,7 @@ public partial class FireScatterChart<TItem> : ComponentBase
         _yTicks = BuildYTicks(yScale.Min, yScale.Max);
 
         var states = new List<RenderedSeries>(rawSeries.Count);
+        var pointsByKey = new Dictionary<PointKey, ScatterChartPoint<TItem>>(allPoints.Count);
 
         foreach (var series in rawSeries)
         {
@@ -155,10 +159,15 @@ public partial class FireScatterChart<TItem> : ComponentBase
                     point.HoverFill,
                     point.Radius,
                     IsSelected(point),
-                    _hoveredPointKey == key,
-                    _focusedPointKey == key,
+                    false,
+                    false,
                     point.AccessibleLabel);
             }).ToList();
+
+            foreach (var point in points)
+            {
+                pointsByKey[new PointKey(point.SeriesIndex, point.PointIndex)] = point;
+            }
 
             states.Add(new RenderedSeries
             {
@@ -171,6 +180,7 @@ public partial class FireScatterChart<TItem> : ComponentBase
         }
 
         _seriesStates = new ReadOnlyCollection<RenderedSeries>(states);
+        _pointsByKey = pointsByKey;
         NormalizeInteractionState();
     }
 
@@ -375,10 +385,7 @@ public partial class FireScatterChart<TItem> : ComponentBase
     }
 
     private async Task RefreshPointsAsync()
-    {
-        RebuildChart();
-        await InvokeAsync(StateHasChanged);
-    }
+        => await InvokeAsync(StateHasChanged);
 
     private ScatterChartPoint<TItem>? FindPoint(PointKey? key)
     {
@@ -387,19 +394,7 @@ public partial class FireScatterChart<TItem> : ComponentBase
             return null;
         }
 
-        foreach (var series in _seriesStates)
-        {
-            var point = series.Points.FirstOrDefault(candidate =>
-                candidate.SeriesIndex == key.Value.SeriesIndex &&
-                candidate.PointIndex == key.Value.PointIndex);
-
-            if (point is not null)
-            {
-                return point;
-            }
-        }
-
-        return null;
+        return _pointsByKey.GetValueOrDefault(key.Value);
     }
 
     private void NormalizeInteractionState()
@@ -599,12 +594,12 @@ public partial class FireScatterChart<TItem> : ComponentBase
         return string.Join(" ", classes);
     }
 
-    private static string GetPointClasses(ScatterChartPoint<TItem> point)
+    private string GetPointClasses(ScatterChartPoint<TItem> point)
     {
         var classes = new List<string> { "scatter-point-group" };
-        if (point.IsHovered) classes.Add("is-hovered");
-        if (point.IsFocused) classes.Add("is-focused");
-        if (point.IsSelected) classes.Add("is-selected");
+        if (IsHovered(point)) classes.Add("is-hovered");
+        if (IsFocused(point)) classes.Add("is-focused");
+        if (IsSelected(point)) classes.Add("is-selected");
         return string.Join(" ", classes);
     }
 
@@ -619,10 +614,21 @@ public partial class FireScatterChart<TItem> : ComponentBase
     private static string GetPointStyle(ScatterChartPoint<TItem> point) =>
         $"--point-color: {point.Fill}; --point-hover-color: {point.HoverFill};";
 
-    private static double GetPointRadius(ScatterChartPoint<TItem> point) =>
-        point.IsSelected ? point.Radius + 1.8 :
-        point.IsHovered || point.IsFocused ? point.Radius + 1.1 :
+    private double GetPointRadius(ScatterChartPoint<TItem> point) =>
+        IsSelected(point) ? point.Radius + 1.8 :
+        IsHovered(point) || IsFocused(point) ? point.Radius + 1.1 :
         point.Radius;
+
+    private bool IsSelected(ScatterChartPoint<TItem> point) =>
+        SelectedPoint is not null &&
+        SelectedPoint.SeriesIndex == point.SeriesIndex &&
+        SelectedPoint.PointIndex == point.PointIndex;
+
+    private bool IsHovered(ScatterChartPoint<TItem> point) =>
+        _hoveredPointKey == new PointKey(point.SeriesIndex, point.PointIndex);
+
+    private bool IsFocused(ScatterChartPoint<TItem> point) =>
+        _focusedPointKey == new PointKey(point.SeriesIndex, point.PointIndex);
 
     private ScatterChartPointInteraction<TItem> ToInteraction(ScatterChartPoint<TItem> point) =>
         new(point.Item, point.SeriesIndex, point.SeriesName, point.PointIndex, point.Label, point.X, point.Y);

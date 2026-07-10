@@ -1,0 +1,95 @@
+.chart-tooltip {
+    position: absolute;
+    z-index: 1;
+    box-sizing: border-box;
+    min-width: min(11rem, calc(100% - 16px));
+    max-width: min(18rem, calc(100% - 16px));
+    padding: 0.7rem 0.85rem;
+    border: 1px solid rgba(255, 179, 71, 0.18);
+    border-radius: 0.85rem;
+    background: rgba(32, 26, 31, 0.96);
+    color: #fff8f2;
+    box-shadow: 0 14px 28px rgba(18, 24, 29, 0.18);
+    font-size: 0.85rem;
+    line-height: 1.35;
+    white-space: normal;
+}
+
+.chart-tooltip--nowrap {
+    min-width: auto;
+    max-width: none;
+    white-space: nowrap;
+}
+
+.chart-tooltip--top {
+    transform: translate(-50%, calc(-100% - 8px));
+}
+
+.chart-tooltip--side {
+    transform: translate(12px, -50%);
+}
+
+.chart-tooltip--corner {
+    transform: translate(12px, calc(-100% - 8px));
+}
+
+.chart-tooltip--contained {
+    transform: none;
+}
+
+.tooltip-header {
+    display: grid;
+    gap: 0.2rem;
+    margin-bottom: 0.55rem;
+}
+
+.tooltip-series {
+    color: #ffcfab;
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.tooltip-label {
+    font-weight: 700;
+}
+
+.tooltip-total,
+.tooltip-series,
+.tooltip-value {
+    opacity: 0.82;
+}
+
+.tooltip-list {
+    display: grid;
+    gap: 0.35rem;
+}
+
+.tooltip-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.55rem;
+    opacity: 0.84;
+}
+
+.tooltip-row.is-active {
+    opacity: 1;
+}
+
+.tooltip-swatch {
+    width: 0.72rem;
+    height: 0.72rem;
+    border-radius: 0.24rem;
+    background: var(--tooltip-swatch-color);
+}
+
+.tooltip-row-label {
+    min-width: 0;
+}
+
+.tooltip-row-value {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}

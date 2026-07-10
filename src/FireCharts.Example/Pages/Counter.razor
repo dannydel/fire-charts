@@ -1,40 +1,99 @@
 ﻿@page "/counter"
+@page "/interactionmodel"
 
-<PageTitle>Counter</PageTitle>
+<PageTitle>Interaction Model</PageTitle>
 
-<section class="page-section page-section--compact">
-    <div class="section-heading">
-        <p class="section-kicker">Interaction demo</p>
-        <h1>Buttons and status need the same visual care as charts.</h1>
-        <p class="section-lede">This page demonstrates high-contrast controls, clear status messaging, and tactile feedback without overusing motion.</p>
+<PageIntro Kicker="Interaction model"
+           Title="Selection, focus, and status stay in ordinary Blazor state."
+           Description="The example site uses the same interaction patterns the charts expose: visible focus, simple state binding, and live status text that surrounding UI can react to without JavaScript handoff.">
+    <div class="stat-strip" aria-label="Interaction patterns">
+        <div class="stat-pill"><strong>Selection</strong><span>Bind selected items or points directly into the rest of the page.</span></div>
+        <div class="stat-pill"><strong>Focus</strong><span>Keyboard-visible states stay readable against both light and dark surfaces.</span></div>
+        <div class="stat-pill"><strong>Status</strong><span>Live regions make chart-driven updates understandable without extra navigation.</span></div>
     </div>
-
-    <div class="callout-card">
-        <p class="metric-label">Current count</p>
-        <p class="metric-value" role="status" aria-live="polite">@currentCount</p>
-        <button class="button-link button-link--primary" @onclick="IncrementCount">Increase count</button>
-    </div>
-</section>
+</PageIntro>
 
 <section class="feature-grid" aria-label="Interaction principles">
     <article class="feature-card">
-        <p class="feature-card__eyebrow">Focus</p>
-        <h2>Keyboard first</h2>
-        <p>Interactive elements keep a strong, warm focus ring so navigation is visible against both dark and light surfaces.</p>
+        <p class="feature-card__eyebrow">Shared pattern</p>
+        <h2>Every chart page uses the same feedback loop.</h2>
+        <p>Selection notes, tooltip detail, and keyboard focus are intentionally handled the same way across lines, bars, pies, heatmaps, and waterfalls.</p>
     </article>
 
     <article class="feature-card">
-        <p class="feature-card__eyebrow">Feedback</p>
-        <h2>Meaningful status</h2>
-        <p>The count is announced via a live region, helping assistive technology users track changes without extra navigation.</p>
+        <p class="feature-card__eyebrow">No extra event bus</p>
+        <h2>Use normal component state.</h2>
+        <p>When a chart point is selected, the page can update summaries, tables, or side panels through ordinary Blazor bindings instead of bespoke integration code.</p>
+    </article>
+
+    <article class="feature-card">
+        <p class="feature-card__eyebrow">Accessible by default</p>
+        <h2>Status text belongs near the chart.</h2>
+        <p>Short, local status messages give screen-reader and keyboard users the same orientation that pointer users get from hover or emphasis changes.</p>
     </article>
 </section>
 
+<section class="chart-grid">
+    <article class="callout-card">
+        <p class="metric-label">Interaction signal</p>
+        <p class="metric-value" role="status" aria-live="polite">@selectionCount</p>
+        <p class="section-lede">Treat the count like a placeholder for a selected point, bar, slice, or cell elsewhere in the UI.</p>
+        <button class="button-link button-link--primary" @onclick="IncrementCount">Simulate selection update</button>
+    </article>
+
+    <article class="docs-card docs-card--code">
+        <div class="chart-card__header">
+            <div>
+                <p class="section-kicker">Pattern</p>
+                <h2>Wire chart interaction into nearby UI</h2>
+            </div>
+            <p class="chart-card__copy">The chart raises selection, the page stores it, and a nearby live region explains what changed.</p>
+        </div>
+
+        <pre class="code-example"><code>@InteractionExample</code></pre>
+    </article>
+</section>
+
+<ExampleDocsSection Title="Keep the surrounding UI in sync with chart selection"
+                    Description="These same patterns power the selection notes throughout the FireCharts examples."
+                    CodeTitle="Bind selection like ordinary Blazor state"
+                    CodeDescription="Pin the selected chart item and surface a compact status message beside the chart."
+                    CodeExample="@InteractionExample"
+                    ApiTitle="Useful interaction patterns"
+                    ApiDescription="The component APIs already expose the hooks; the rest is straightforward page state."
+                    ApiItems="@InteractionApiItems" />
+
 @code {
-    private int currentCount = 0;
+    private int selectionCount = 3;
 
     private void IncrementCount()
     {
-        currentCount++;
+        selectionCount++;
     }
+
+    private string InteractionExample => """
+@code {
+    private BarChartPoint<SalesPoint>? selectedPoint;
+}
+
+<FireBarChart TItem="SalesPoint"
+              Items="@sales"
+              ValueSelector="item => item.Value"
+              LabelSelector="item => item.Label"
+              @bind-SelectedItem="selectedPoint" />
+
+<p role="status" aria-live="polite">
+    @(selectedPoint is null
+        ? "Select a bar to inspect it."
+        : $"{selectedPoint.Label} is selected.")
+</p>
+""";
+
+    private IReadOnlyList<ExampleApiItem> InteractionApiItems { get; } =
+    [
+        new("@bind-SelectedItem or @bind-SelectedPoint", "Keep the chart selection in ordinary component state so other UI can react immediately."),
+        new("SelectionNote or nearby live-region text", "Summarize the current item in plain language close to the chart."),
+        new("Visible focus styles", "Preserve keyboard clarity on charts, buttons, and any supporting controls around the surface."),
+        new("TooltipTemplate", "Surface richer context on hover or focus without forcing every detail into the chart itself.")
+    ];
 }

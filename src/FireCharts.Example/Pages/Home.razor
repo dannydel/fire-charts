@@ -3,66 +3,72 @@
 @using System.Globalization
 @using FireCharts.Models
 
-<PageTitle>Home</PageTitle>
+<PageTitle>FireCharts Showcase</PageTitle>
 
 <section class="home-hero">
     <div class="home-hero__copy">
-        <p class="section-kicker">FireCharts component gallery</p>
+        <p class="section-kicker">FireCharts example site</p>
         <div class="home-brand-lockup" aria-label="FireCharts brand">
             <img class="home-brand-lockup__mark" src="brand/concepts/firecharts-concept-2b.svg" alt="" />
             <div class="home-brand-lockup__copy">
                 <p class="home-brand-lockup__title">FireCharts</p>
-                <p class="home-brand-lockup__tagline">A Blazor forward chart library.</p>
+                <p class="home-brand-lockup__tagline">Typed Blazor charts with a product-ready visual language.</p>
             </div>
         </div>
-        <h1>Show the library like a product, not just a demo list.</h1>
+
+        <h1>Blazor charts that look production-ready without leaving Razor.</h1>
         <p class="hero-lede">
-            The homepage now leads with the actual components: expressive charts, typed APIs, and interaction
-            patterns that feel ready for dashboards, portals, and reporting surfaces.
+            FireCharts keeps rendering, interaction, and responsive behavior in Blazor so dashboards, reporting
+            surfaces, and operations tools can ship polished data views without hand-rolled chart glue.
         </p>
 
         <div class="home-hero__actions">
-            <a class="button-link button-link--primary" href="linechart">See line chart demos</a>
-            <a class="button-link" href="barchart">See bar chart demos</a>
-            <a class="button-link" href="piechart">See pie chart demos</a>
-            <a class="button-link" href="scatterchart">See scatter chart demos</a>
-            <a class="button-link" href="heatmapchart">See heatmap demos</a>
+            <a class="button-link button-link--primary" href="linechart">Explore trend charts</a>
+            <a class="button-link" href="barchart">Compare categories</a>
+            <a class="button-link" href="heatmapchart">See operational surfaces</a>
         </div>
 
-        <div class="home-hero__stats" aria-label="Library highlights">
-            <div class="stat-pill">
-                <strong>Typed components</strong>
-                <span>Selector-based APIs keep data mapping explicit and easy to scan.</span>
-            </div>
-            <div class="stat-pill">
-                <strong>Responsive by default</strong>
-                <span>Examples flex from compact cards to wider dashboard canvases.</span>
-            </div>
-            <div class="stat-pill">
-                <strong>Accessible interaction</strong>
-                <span>Hover, focus, selection, and labels work together instead of competing.</span>
-            </div>
+        <div class="home-hero__proof" aria-label="Library highlights">
+            <article class="home-proof-card">
+                <strong>Typed selectors</strong>
+                <span>Keep your own models and map them directly to chart inputs without chart-only DTOs.</span>
+            </article>
+            <article class="home-proof-card">
+                <strong>One interaction model</strong>
+                <span>Selection, tooltips, focus states, and responsive sizing stay consistent across chart families.</span>
+            </article>
+            <article class="home-proof-card">
+                <strong>Showroom-quality examples</strong>
+                <span>The sample app is organized around chart jobs and product use cases instead of generic starter pages.</span>
+            </article>
         </div>
     </div>
 
     <aside class="home-hero__spotlight" aria-labelledby="home-spotlight-title">
         <div class="home-hero__spotlight-header">
             <div>
-                <p class="section-kicker">Hero example</p>
-                <h2 id="home-spotlight-title">Operational trend preview</h2>
+                <p class="section-kicker">Live hero chart</p>
+                <h2 id="home-spotlight-title">Inspection volume across districts</h2>
             </div>
             <p class="home-hero__spotlight-copy">
-                A live line chart in the hero makes the library feel tangible immediately.
+                The first screen leads with a real chart, not illustration-only marketing copy.
             </p>
         </div>
 
-        <div class="chart-scroll">
+        <div class="home-hero__spotlight-tags">
+            <span class="home-chip">Multi-series comparison</span>
+            <span class="home-chip">Highlight-driven markers</span>
+            <span class="home-chip">Tooltip templates</span>
+        </div>
+
+        <div class="chart-scroll home-hero__chart-scroll">
             <FireLineChart TItem="HeroTrendPoint"
                            Title="Inspections completed"
                            Description="Weekly inspections completed across four service areas"
-                           Width="640"
-                           Height="360"
+                           Width="760"
+                           Height="380"
                            Responsive="true"
+                           ConstrainTooltipToChartBounds="true"
                            Series="@HeroTrendSeries"
                            XValueSelector="point => LineChartXValue.FromDateTime(point.Date)"
                            YValueSelector="point => point.Value"
@@ -80,33 +86,58 @@
     </aside>
 </section>
 
-<section class="home-value" aria-label="Why this library feels product ready">
-    <article class="feature-card">
-        <p class="feature-card__eyebrow">Real components</p>
-        <h2>Examples sell the API</h2>
-        <p>Each preview is a real component instance, so the homepage feels like a showroom instead of static marketing copy.</p>
-    </article>
+<section class="home-families">
+    <div class="section-heading">
+        <p class="section-kicker">Chart families</p>
+        <h2>Navigate by the job the chart needs to do.</h2>
+        <p class="section-lede">
+            The example site now groups FireCharts around the questions product teams actually ask: what changed, how
+            categories compare, how a total was assembled, and where operational pressure is building.
+        </p>
+    </div>
 
-    <article class="feature-card">
-        <p class="feature-card__eyebrow">Consistent patterns</p>
-        <h2>One mental model across charts</h2>
-        <p>Selectors, titles, descriptions, and responsive behavior stay familiar whether you render bars, lines, or pies.</p>
-    </article>
+    <div class="home-families__grid">
+        <article class="home-family">
+            <p class="feature-card__eyebrow">Movement and ranking</p>
+            <h3>Track change across time or across categories.</h3>
+            <p>Use line, bar, clustered, and stacked charts when the UI needs fast scanning and a stable mental model.</p>
+            <div class="home-family__links">
+                <a href="linechart">Line</a>
+                <a href="barchart">Bar</a>
+                <a href="clusteredbarchart">Clustered</a>
+                <a href="stackedbarchart">Stacked</a>
+            </div>
+        </article>
 
-    <article class="feature-card">
-        <p class="feature-card__eyebrow">Dashboard friendly</p>
-        <h2>Strong in cards and full pages</h2>
-        <p>The same components can anchor a landing page, sit in a dense admin grid, or expand into dedicated demo pages.</p>
-    </article>
+        <article class="home-family">
+            <p class="feature-card__eyebrow">Composition and explanation</p>
+            <h3>Show what made up a share or moved a total.</h3>
+            <p>Pie and waterfall views help the audience understand allocation, contribution, and the why behind a number.</p>
+            <div class="home-family__links">
+                <a href="piechart">Pie</a>
+                <a href="waterfallchart">Waterfall</a>
+            </div>
+        </article>
+
+        <article class="home-family">
+            <p class="feature-card__eyebrow">Analysis surfaces</p>
+            <h3>Read relationships, clusters, and operating pressure.</h3>
+            <p>Scatter and heatmap demos cover the analysis-heavy views teams usually bolt on later and style inconsistently.</p>
+            <div class="home-family__links">
+                <a href="scatterchart">Scatter</a>
+                <a href="heatmapchart">Heatmap</a>
+            </div>
+        </article>
+    </div>
 </section>
 
 <section class="home-showcase">
     <div class="section-heading">
         <p class="section-kicker">Component showcase</p>
-        <h2>Five chart types, each presented like a polished product feature.</h2>
+        <h2>Each example feels like a real feature surface.</h2>
         <p class="section-lede">
-            The homepage now introduces the library through compact, high-signal examples and a short explanation of
-            where each component shines.
+            The cards below keep the components live, but the surrounding copy stays focused on where each chart earns
+            its place in a product.
         </p>
     </div>
 
@@ -122,6 +153,7 @@
                                Width="420"
                                Height="300"
                                Responsive="true"
+                               ConstrainTooltipToChartBounds="true"
                                Items="@MiniTrend"
                                XValueSelector="point => LineChartXValue.FromDateTime(point.Date)"
                                YValueSelector="point => point.Value"
@@ -149,6 +181,7 @@
                               Width="420"
                               Height="300"
                               Responsive="true"
+                              ConstrainTooltipToChartBounds="true"
                               Items="@MiniBars"
                               ValueSelector="point => point.Value"
                               LabelSelector="point => point.Label"
@@ -177,6 +210,7 @@
                               Width="420"
                               Height="320"
                               Responsive="true"
+                              ConstrainTooltipToChartBounds="true"
                               Items="@MiniSlices"
                               ValueSelector="point => point.Value"
                               LabelSelector="point => point.Label"
@@ -205,6 +239,7 @@
                                   Width="420"
                                   Height="320"
                                   Responsive="true"
+                                  ConstrainTooltipToChartBounds="true"
                                   Items="@MiniScatter"
                                   XValueSelector="point => LineChartXValue.FromNumber(point.Volume)"
                                   YValueSelector="point => point.ResponseMinutes"
@@ -238,6 +273,7 @@
                                   Width="420"
                                   Height="320"
                                   Responsive="true"
+                                  ConstrainTooltipToChartBounds="true"
                                   Items="@MiniHeatmap"
                                   RowKeySelector="point => point.DayKey"
                                   RowLabelSelector="point => point.DayLabel"
@@ -258,31 +294,63 @@
                 </div>
             </FooterContent>
         </ChartDemoCard>
+
+        <ChartDemoCard Kicker="Waterfall"
+                       Title="Show how totals changed"
+                       Description="Waterfalls work when the audience needs the why behind a total, not just the ending number."
+                       Compact="true">
+            <ChildContent>
+                <FireWaterfallChart TItem="MiniWaterfallPoint"
+                                    Title="Budget walk"
+                                    Description="Starting budget to updated total"
+                                    Width="420"
+                                    Height="320"
+                                    Responsive="true"
+                                    ConstrainTooltipToChartBounds="true"
+                                    Items="@MiniWaterfall"
+                                    LabelSelector="point => point.Label"
+                                    ValueSelector="point => point.Value"
+                                    StepTypeSelector="point => point.StepType"
+                                    ValueFormat="N0"
+                                    ShowGridLines="false" />
+            </ChildContent>
+            <FooterContent>
+                <div class="home-card-footer">
+                    <span class="home-chip">Start, change, subtotal, total</span>
+                    <span class="home-chip">Connector-based story flow</span>
+                </div>
+            </FooterContent>
+        </ChartDemoCard>
     </div>
 </section>
 
-<section class="home-api">
+<section class="home-api" id="developer-story">
     <div class="home-api__content">
         <p class="section-kicker">Developer experience</p>
-        <h2>The API surface stays approachable even when the visuals feel premium.</h2>
+        <h2>The API stays compact even when the output looks polished.</h2>
         <p class="section-lede">
-            The examples below market the library to both audiences at once: designers see polished output, and
-            developers can tell the components are straightforward to wire up.
+            FireCharts uses one selector-first mental model across trends, comparisons, composition charts, and
+            analysis surfaces. The examples below are meant to reassure both product designers and implementers.
         </p>
 
         <div class="home-api__list" aria-label="API qualities">
             <div class="home-api__item">
                 <strong>Typed data in</strong>
-                <span>Keep your own models and map them with selectors instead of reshaping everything into a chart DTO.</span>
+                <span>Map labels, values, colors, and milestones straight from your own records.</span>
             </div>
             <div class="home-api__item">
                 <strong>Behavior toggles</strong>
-                <span>Turn on legends, labels, grid lines, interpolation modes, and selection without custom renderers.</span>
+                <span>Legends, selection, grid lines, interpolation, and labels stay opt-in instead of custom work.</span>
             </div>
             <div class="home-api__item">
-                <strong>Composable templates</strong>
-                <span>Drop in tooltip content where richer storytelling or dashboard context is useful.</span>
+                <strong>Templates where they matter</strong>
+                <span>Use richer tooltip and SVG content only when the chart needs more storytelling surface.</span>
             </div>
+        </div>
+
+        <div class="home-api__support">
+            <a class="button-link" href="interactionmodel">Interaction model</a>
+            <a class="button-link" href="tablepatterns">Table patterns</a>
         </div>
     </div>
 
@@ -292,7 +360,7 @@
                 <p class="section-kicker">Starter snippet</p>
                 <h3>Render a showcase-ready chart</h3>
             </div>
-            <p class="chart-card__copy">The same patterns from the demo pages work cleanly in product code.</p>
+            <p class="chart-card__copy">The same patterns from the examples drop cleanly into product code.</p>
         </div>
 
         <pre class="code-example"><code>@HomeUsageExample</code></pre>
@@ -325,7 +393,19 @@
             ],
             "#198f8c",
             HoverColor: "#11696c",
-            FillColor: "#198f8c")
+            FillColor: "#198f8c"),
+        new(
+            "West",
+            [
+                new(new DateTime(2026, 1, 5), 109, "Jan 5", false),
+                new(new DateTime(2026, 1, 12), 124, "Jan 12", false),
+                new(new DateTime(2026, 1, 19), 128, "Jan 19", false),
+                new(new DateTime(2026, 1, 26), 139, "Jan 26", true),
+                new(new DateTime(2026, 2, 2), 146, "Feb 2", false)
+            ],
+            "#4d89ff",
+            HoverColor: "#245ec7",
+            FillColor: "#4d89ff")
     ];
 
     private IReadOnlyList<MiniTrendPoint> MiniTrend { get; } =
@@ -381,6 +461,14 @@
         new("fri", "Fri", 4, "night", "Night", 2, 12)
     ];
 
+    private IReadOnlyList<MiniWaterfallPoint> MiniWaterfall { get; } =
+    [
+        new("Plan", 220, WaterfallStepType.Start),
+        new("Hiring", 26, WaterfallStepType.Change),
+        new("Attrition", -18, WaterfallStepType.Change),
+        new("Adjusted", 0, WaterfallStepType.Total)
+    ];
+
     private string HomeUsageExample => """
 @using FireCharts.Components
 @using FireCharts.Models
@@ -393,7 +481,12 @@
                XValueSelector="point => LineChartXValue.FromDateTime(point.Date)"
                YValueSelector="point => point.Completed"
                LabelSelector="point => point.Label"
-               HighlightSelector="point => point.IsMilestone" />
+               HighlightSelector="point => point.IsMilestone">
+    <TooltipTemplate Context="point">
+        <div>@point.Label</div>
+        <div>@point.Y completed</div>
+    </TooltipTemplate>
+</FireLineChart>
 """;
 
     private sealed record HeroTrendPoint(DateTime Date, double Value, string Label, bool Highlight);
@@ -402,4 +495,5 @@
     private sealed record MiniSlice(string Label, double Value, string Color);
     private sealed record MiniScatterPoint(string Label, double Volume, double ResponseMinutes, string Color, string HoverColor);
     private sealed record MiniHeatmapPoint(string DayKey, string DayLabel, int DayOrder, string ShiftKey, string ShiftLabel, int ShiftOrder, double Value);
+    private sealed record MiniWaterfallPoint(string Label, double Value, WaterfallStepType StepType);
 }

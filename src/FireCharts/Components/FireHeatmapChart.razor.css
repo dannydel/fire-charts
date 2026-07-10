@@ -115,6 +115,18 @@
     white-space: nowrap;
 }
 
+.heatmap-canvas-layer {
+    position: absolute;
+    display: block;
+    pointer-events: auto;
+}
+
+.heatmap-canvas-interaction-layer {
+    position: absolute;
+    outline: none;
+    pointer-events: auto;
+}
+
 .tooltip-series {
     color: #ffcfab;
     font-size: 0.74rem;

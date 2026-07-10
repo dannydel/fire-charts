@@ -16,7 +16,7 @@
     </div>
 </PageIntro>
 
-<section class="chart-grid">
+<section>
     <ChartDemoCard Kicker="Day x hour matrix"
                    Title="Incident demand by hour"
                    Description="A day by hour heatmap surfaces overnight quiet periods, weekday surges, and the evening shoulder when volume starts climbing again.">
@@ -28,6 +28,8 @@
                                   Width="920"
                                   Height="430"
                                   Responsive="true"
+                                  ConstrainTooltipToChartBounds="true"
+                                  RenderMode="HeatmapRenderMode.Auto"
                                   Items="@DispatchMatrix"
                                   RowKeySelector="item => item.DayKey"
                                   RowLabelSelector="item => item.DayLabel"
@@ -75,6 +77,7 @@
                               Width="460"
                               Height="340"
                               Responsive="true"
+                              ConstrainTooltipToChartBounds="true"
                               Items="@UtilizationMatrix"
                               RowKeySelector="item => item.StationKey"
                               RowLabelSelector="item => item.StationLabel"
@@ -132,6 +135,7 @@
 
     private string HeatmapChartUsageExample => """
 @using FireCharts.Components
+@using FireCharts.Models
 
 @code {
     private HeatCell? selectedCell;
@@ -164,6 +168,7 @@
                   ColumnLabelSelector="item => item.HourLabel"
                   ColumnOrderSelector="item => item.HourOrder"
                   ValueSelector="item => item.Value"
+                  RenderMode="HeatmapRenderMode.Auto"
                   Responsive="true"
                   @bind-SelectedItem="selectedCell" />
 """;
@@ -173,6 +178,7 @@
         new("RowKeySelector and ColumnKeySelector", "Identify the matrix coordinates for each item without reshaping your data into a special chart model."),
         new("RowOrderSelector and ColumnOrderSelector", "Keep natural sequences like weekdays, shifts, and hours stable instead of relying on input order."),
         new("ValueSelector", "Map the numeric intensity value rendered through the heat scale."),
+        new("RenderMode", "Use Svg for exact DOM cells, Canvas for large matrices, or Auto to promote dense heatmaps automatically."),
         new("@bind-SelectedItem", "Keep the chosen cell in sync with the rest of the page or dashboard."),
         new("ColorSelector", "Override the interpolated palette when you already have a domain-specific severity color."),
         new("TooltipTemplate", "Render richer operational detail than the default row, column, and value output.")

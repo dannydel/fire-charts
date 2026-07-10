@@ -56,6 +56,7 @@ public partial class FireLineChart<TItem> : ComponentBase
     private IReadOnlyList<RenderedSeries> _seriesStates = Array.Empty<RenderedSeries>();
     private IReadOnlyList<AxisTick> _xTicks = Array.Empty<AxisTick>();
     private IReadOnlyList<AxisTick> _yTicks = Array.Empty<AxisTick>();
+    private Dictionary<PointKey, LineChartPoint<TItem>> _pointsByKey = [];
     private PointKey? _hoveredPointKey;
     private PointKey? _focusedPointKey;
     private int? _legendSeriesIndex;
@@ -90,6 +91,7 @@ public partial class FireLineChart<TItem> : ComponentBase
     [Parameter] public bool ShowAxisLabels { get; set; } = true;
     [Parameter] public bool ShowLegend { get; set; } = true;
     [Parameter] public bool ShowTooltip { get; set; } = true;
+    [Parameter] public bool ConstrainTooltipToChartBounds { get; set; }
     [Parameter] public LinePointDisplayMode PointDisplayMode { get; set; } = LinePointDisplayMode.HighlightedOnly;
     [Parameter] public int XAxisTickCount { get; set; } = 5;
     [Parameter] public int YAxisTickCount { get; set; } = 5;
@@ -149,6 +151,7 @@ public partial class FireLineChart<TItem> : ComponentBase
             _seriesStates = Array.Empty<RenderedSeries>();
             _xTicks = Array.Empty<AxisTick>();
             _yTicks = Array.Empty<AxisTick>();
+            _pointsByKey = [];
             return;
         }
 
@@ -161,6 +164,7 @@ public partial class FireLineChart<TItem> : ComponentBase
         _yTicks = BuildYTicks(yScale.Min, yScale.Max);
 
         var states = new List<RenderedSeries>(rawSeries.Count);
+        var pointsByKey = new Dictionary<PointKey, LineChartPoint<TItem>>(allPoints.Count);
 
         foreach (var series in rawSeries)
         {
@@ -184,15 +188,19 @@ public partial class FireLineChart<TItem> : ComponentBase
                         point.Fill,
                         point.IsHighlighted,
                         IsSelected(point),
-                        _hoveredPointKey == key,
-                        _focusedPointKey == key,
+                        false,
+                        false,
                         point.AccessibleLabel);
                 })
                 .ToList();
 
-            var visiblePoints = points.Where(ShouldRenderPoint).ToList();
             var linePath = BuildLinePath(points);
             var areaPath = Variant == LineChartVariant.Area ? BuildAreaPath(points, baselineY) : string.Empty;
+
+            foreach (var point in points)
+            {
+                pointsByKey[new PointKey(point.SeriesIndex, point.PointIndex)] = point;
+            }
 
             states.Add(new RenderedSeries
             {
@@ -206,11 +214,12 @@ public partial class FireLineChart<TItem> : ComponentBase
                 LinePathData = linePath,
                 AreaPathData = areaPath,
                 Points = new ReadOnlyCollection<LineChartPoint<TItem>>(points),
-                VisiblePoints = new ReadOnlyCollection<LineChartPoint<TItem>>(visiblePoints)
+                VisiblePoints = new ReadOnlyCollection<LineChartPoint<TItem>>(points)
             });
         }
 
         _seriesStates = new ReadOnlyCollection<RenderedSeries>(states);
+        _pointsByKey = pointsByKey;
         NormalizeInteractionState();
     }
 
@@ -414,10 +423,7 @@ public partial class FireLineChart<TItem> : ComponentBase
     }
 
     private async Task RefreshPointsAsync()
-    {
-        RebuildChart();
-        await InvokeAsync(StateHasChanged);
-    }
+        => await InvokeAsync(StateHasChanged);
 
     private LineChartPoint<TItem>? FindPoint(PointKey? key)
     {
@@ -426,19 +432,7 @@ public partial class FireLineChart<TItem> : ComponentBase
             return null;
         }
 
-        foreach (var series in _seriesStates)
-        {
-            var point = series.Points.FirstOrDefault(candidate =>
-                candidate.SeriesIndex == key.Value.SeriesIndex &&
-                candidate.PointIndex == key.Value.PointIndex);
-
-            if (point is not null)
-            {
-                return point;
-            }
-        }
-
-        return null;
+        return _pointsByKey.GetValueOrDefault(key.Value);
     }
 
     private void NormalizeInteractionState()
@@ -459,7 +453,7 @@ public partial class FireLineChart<TItem> : ComponentBase
         {
             LinePointDisplayMode.None => false,
             LinePointDisplayMode.All => true,
-            _ => point.IsHighlighted || point.IsSelected || point.IsHovered || point.IsFocused
+            _ => point.IsHighlighted || IsSelected(point) || IsHovered(point) || IsFocused(point)
         };
 
     private bool IsSelected(RawPoint point) =>
@@ -728,6 +722,11 @@ public partial class FireLineChart<TItem> : ComponentBase
     private string GetTooltipStyle(LineChartPoint<TItem> point) =>
         $"left: {Fmt(point.Coordinates.X)}px; top: {Fmt(point.Coordinates.Y)}px;";
 
+    private IReadOnlyList<LineChartPoint<TItem>> GetVisiblePoints(RenderedSeries series) =>
+        PointDisplayMode == LinePointDisplayMode.All
+            ? series.Points
+            : series.Points.Where(ShouldRenderPoint).ToArray();
+
     private string GetSeriesClasses(RenderedSeries series)
     {
         var classes = new List<string> { "line-series-group" };
@@ -743,13 +742,13 @@ public partial class FireLineChart<TItem> : ComponentBase
         return string.Join(" ", classes);
     }
 
-    private static string GetPointClasses(LineChartPoint<TItem> point)
+    private string GetPointClasses(LineChartPoint<TItem> point)
     {
         var classes = new List<string> { "line-point-group" };
         if (point.IsHighlighted) classes.Add("is-highlighted");
-        if (point.IsHovered) classes.Add("is-hovered");
-        if (point.IsFocused) classes.Add("is-focused");
-        if (point.IsSelected) classes.Add("is-selected");
+        if (IsHovered(point)) classes.Add("is-hovered");
+        if (IsFocused(point)) classes.Add("is-focused");
+        if (IsSelected(point)) classes.Add("is-selected");
         return string.Join(" ", classes);
     }
 
@@ -770,10 +769,21 @@ public partial class FireLineChart<TItem> : ComponentBase
     private static string GetPointStyle(LineChartPoint<TItem> point) =>
         $"--point-color: {point.Stroke}; --point-hover-color: {point.HoverStroke};";
 
-    private static double GetPointRadius(LineChartPoint<TItem> point) =>
-        point.IsSelected ? 5.1 :
-        point.IsHovered || point.IsFocused ? 4.6 :
+    private double GetPointRadius(LineChartPoint<TItem> point) =>
+        IsSelected(point) ? 5.1 :
+        IsHovered(point) || IsFocused(point) ? 4.6 :
         point.IsHighlighted ? 4 : 3.4;
+
+    private bool IsSelected(LineChartPoint<TItem> point) =>
+        SelectedPoint is not null &&
+        SelectedPoint.SeriesIndex == point.SeriesIndex &&
+        SelectedPoint.PointIndex == point.PointIndex;
+
+    private bool IsHovered(LineChartPoint<TItem> point) =>
+        _hoveredPointKey == new PointKey(point.SeriesIndex, point.PointIndex);
+
+    private bool IsFocused(LineChartPoint<TItem> point) =>
+        _focusedPointKey == new PointKey(point.SeriesIndex, point.PointIndex);
 
     private LineChartPointInteraction<TItem> ToInteraction(LineChartPoint<TItem> point) =>
         new(point.Item, point.SeriesIndex, point.SeriesName, point.PointIndex, point.Label, point.X, point.Y);

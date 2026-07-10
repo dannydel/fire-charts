@@ -7,7 +7,7 @@
 
 <PageIntro Kicker="Stacked comparisons"
            Title="Stacked bar charts show totals and composition at the same time."
-           Description="This stacked SVG chart keeps the existing FireCharts interaction model while adding segment legends, bar-width tuning, and custom in-chart SVG annotations.">
+           Description="This stacked SVG chart now keeps one shared tooltip alive across each category so people can move through segments smoothly while still seeing bar totals and per-series detail.">
     <div class="stat-strip" aria-label="Stacked chart strengths">
         <div class="stat-pill"><strong>Composition</strong><span>See how each category is built from repeated segment types.</span></div>
         <div class="stat-pill"><strong>Flexible legends</strong><span>Place the legend above, below, or beside the chart surface.</span></div>
@@ -18,7 +18,7 @@
 <section class="chart-grid">
     <ChartDemoCard Kicker="Vertical stack"
                    Title="Incident outcomes by station"
-                   Description="The legend below groups repeated segment labels while the custom SVG layer draws a target line across the plot area.">
+                   Description="Hover anywhere within a station band to keep the tooltip open while you inspect each segment, then use the legend and SVG target line for broader comparison.">
         <ChildContent>
             <FireStackedBarChart TItem="StationStack"
                                  TSegment="StationSegment"
@@ -27,6 +27,7 @@
                                  Width="680"
                                  Height="420"
                                  Responsive="true"
+                                 ConstrainTooltipToChartBounds="true"
                                  Items="@Stations"
                                  SegmentsSelector="item => item.Segments"
                                  LabelSelector="item => item.Label"
@@ -86,6 +87,7 @@
                                              Width="680"
                                              Height="420"
                                              Responsive="true"
+                                             ConstrainTooltipToChartBounds="true"
                                              Items="@Stations"
                                              SegmentsSelector="item => item.Segments"
                                              LabelSelector="item => item.Label"

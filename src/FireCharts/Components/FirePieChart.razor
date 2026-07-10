@@ -135,8 +135,13 @@
         <OverlayContent>
             @if (ShowTooltip && HoveredPoint is not null)
             {
-                <div class="chart-tooltip"
-                     style="@GetTooltipStyle(HoveredPoint)">
+                <ChartTooltip AnchorX="@HoveredPoint.TooltipAnchor.X"
+                              AnchorY="@HoveredPoint.TooltipAnchor.Y"
+                              ConstrainToBounds="@ConstrainTooltipToChartBounds"
+                              MeasurementKey="@HoveredPoint"
+                              PreferredPlacement="ChartTooltipPlacement.Above"
+                              LegacyStyle="@GetTooltipStyle(HoveredPoint)"
+                              Offset="10">
                     @if (TooltipTemplate is not null)
                     {
                         @TooltipTemplate(HoveredPoint)
@@ -146,7 +151,7 @@
                         <div class="tooltip-label">@HoveredPoint.Label</div>
                         <div class="tooltip-value">@HoveredPoint.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)</div>
                     }
-                </div>
+                </ChartTooltip>
             }
         </OverlayContent>
     </ChartSurface>

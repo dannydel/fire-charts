@@ -133,30 +133,49 @@
                 }
 
                 <g class="stacked-bar-series @(HasLegendHover ? "has-legend-hover" : null)" role="list" aria-label="@Title">
-                    @foreach (var segment in Segments)
+                    @foreach (var bar in Bars)
                     {
-                        <g @key="segment.Key"
-                           class="@GetSegmentClasses(segment)"
-                           role="listitem"
-                           tabindex="0"
-                           aria-label="@segment.AccessibleLabel"
-                           aria-selected="@segment.IsSelected"
-                           @onmouseover="() => HandleHoverAsync(segment)"
-                           @onmouseout="() => HandleHoverLeaveAsync(segment)"
-                           @onfocus="() => HandleFocusAsync(segment)"
-                           @onblur="() => HandleBlurAsync(segment)"
-                           @onclick="() => HandleSelectAsync(segment)"
-                           @onkeydown="(args) => HandleKeyDownAsync(args, segment)">
-                            <rect class="stacked-segment-rect"
-                                  x="@Fmt(segment.Rect.X)"
-                                  y="@Fmt(segment.Rect.Y)"
-                                  width="@Fmt(segment.Rect.Width)"
-                                  height="@Fmt(segment.Rect.Height)"
-                                  rx="@Fmt(CornerRadius)"
-                                  ry="@Fmt(CornerRadius)"
-                                  style="--segment-color: @segment.Fill; --segment-hover-color: @segment.HoverFill">
-                                <title>@segment.AccessibleLabel</title>
-                            </rect>
+                        <g @key="bar.Index"
+                           class="stacked-bar"
+                           @onmouseenter="() => HandleBarEnterAsync(bar)"
+                           @onmouseleave="() => HandleBarLeaveAsync(bar)">
+                            @if (UsesSharedTooltip && bar.Segments.Count > 0)
+                            {
+                                <rect class="stacked-bar-hover-target"
+                                      x="@Fmt(bar.HoverRect.X)"
+                                      y="@Fmt(bar.HoverRect.Y)"
+                                      width="@Fmt(bar.HoverRect.Width)"
+                                      height="@Fmt(bar.HoverRect.Height)"
+                                      fill="transparent"
+                                      aria-hidden="true" />
+                            }
+
+                            @foreach (var segment in bar.Segments)
+                            {
+                                <g @key="segment.Key"
+                                   class="@GetSegmentClasses(segment)"
+                                   role="listitem"
+                                   tabindex="0"
+                                   aria-label="@segment.AccessibleLabel"
+                                   aria-selected="@IsSelected(segment)"
+                                   @onmouseover="() => HandleHoverAsync(segment)"
+                                   @onmouseout="() => HandleHoverLeaveAsync(segment)"
+                                   @onfocus="() => HandleFocusAsync(segment)"
+                                   @onblur="() => HandleBlurAsync(segment)"
+                                   @onclick="() => HandleSelectAsync(segment)"
+                                   @onkeydown="(args) => HandleKeyDownAsync(args, segment)">
+                                    <rect class="stacked-segment-rect"
+                                          x="@Fmt(segment.Rect.X)"
+                                          y="@Fmt(segment.Rect.Y)"
+                                          width="@Fmt(segment.Rect.Width)"
+                                          height="@Fmt(segment.Rect.Height)"
+                                          rx="@Fmt(CornerRadius)"
+                                          ry="@Fmt(CornerRadius)"
+                                          style="--segment-color: @segment.Fill; --segment-hover-color: @segment.HoverFill">
+                                        <title>@segment.AccessibleLabel</title>
+                                    </rect>
+                                </g>
+                            }
                         </g>
                     }
                 </g>
@@ -170,10 +189,55 @@
             }
         </ChildContent>
         <OverlayContent>
-            @if (ShowTooltip && HoveredSegment is not null)
+            @if (ShowTooltip && UsesSharedTooltip && SharedTooltipContext is not null)
             {
-                <div class="chart-tooltip"
-                     style="@GetTooltipStyle(HoveredSegment)">
+                <ChartTooltip AnchorX="@SharedTooltipContext.Anchor.X"
+                              AnchorY="@SharedTooltipContext.Anchor.Y"
+                              ConstrainToBounds="@ConstrainTooltipToChartBounds"
+                              MeasurementKey="@SharedTooltipContext"
+                              PreferredPlacement="@GetSharedTooltipPlacement(SharedTooltipContext.Horizontal)"
+                              LegacyStyle="@GetTooltipStyle(SharedTooltipContext)"
+                              LegacyPlacementClass="@GetSharedTooltipLegacyPlacementClass(SharedTooltipContext.Horizontal)"
+                              Offset="@(SharedTooltipContext.Horizontal ? 12d : 8d)">
+                    @if (SharedTooltipTemplate is not null)
+                    {
+                        @SharedTooltipTemplate(SharedTooltipContext)
+                    }
+                    else if (TooltipTemplate is not null && SharedTooltipContext.ActiveSegment is not null)
+                    {
+                        @TooltipTemplate(SharedTooltipContext.ActiveSegment)
+                    }
+                    else
+                    {
+                        <div class="tooltip-header">
+                            <div class="tooltip-label">@SharedTooltipContext.BarLabel</div>
+                            <div class="tooltip-total">Total @SharedTooltipContext.TotalValue.ToString(ValueFormat, CultureInfo.InvariantCulture)</div>
+                        </div>
+                        <div class="tooltip-list" role="list">
+                            @foreach (var row in SharedTooltipContext.Rows)
+                            {
+                                <div class="tooltip-row @(row.IsActive ? "is-active" : null)" role="listitem">
+                                    <span class="tooltip-swatch"
+                                          style="@($"--tooltip-swatch-color: {row.Fill}")"
+                                          aria-hidden="true"></span>
+                                    <span class="tooltip-row-label">@row.SegmentLabel</span>
+                                    <span class="tooltip-row-value">@row.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </ChartTooltip>
+            }
+            else if (ShowTooltip && HoveredSegment is not null)
+            {
+                <ChartTooltip AnchorX="@GetTooltipAnchor(HoveredSegment).X"
+                              AnchorY="@GetTooltipAnchor(HoveredSegment).Y"
+                              ConstrainToBounds="@ConstrainTooltipToChartBounds"
+                              MeasurementKey="@HoveredSegment"
+                              PreferredPlacement="@GetSegmentTooltipPlacement()"
+                              LegacyStyle="@GetTooltipStyle(HoveredSegment)"
+                              LegacyPlacementClass="@GetSegmentTooltipLegacyPlacementClass()"
+                              Offset="@(Horizontal ? 12d : 8d)">
                     @if (TooltipTemplate is not null)
                     {
                         @TooltipTemplate(HoveredSegment)
@@ -184,7 +248,7 @@
                         <div class="tooltip-series">@HoveredSegment.SegmentLabel</div>
                         <div class="tooltip-value">@HoveredSegment.Value.ToString(ValueFormat, CultureInfo.InvariantCulture)</div>
                     }
-                </div>
+                </ChartTooltip>
             }
         </OverlayContent>
     </ChartSurface>

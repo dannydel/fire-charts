@@ -212,6 +212,75 @@ public sealed class FireBarChartTests : TestContext
         });
     }
 
+    [Fact]
+    public void DefaultTooltipModePreservesLegacyMarkupWithoutTooltipMeasurement()
+    {
+        var runtime = new RecordingJsRuntime(new RecordingJsObjectReference());
+        Services.AddSingleton<IJSRuntime>(runtime);
+
+        var cut = RenderBarChart(SampleData);
+
+        cut.FindAll("g.bar-group")[0].MouseOver();
+
+        cut.WaitForAssertion(() =>
+        {
+            var tooltip = cut.Find(".chart-tooltip");
+            Assert.DoesNotContain("chart-tooltip--contained", tooltip.GetAttribute("class"));
+            Assert.Contains("left:", tooltip.GetAttribute("style"));
+            Assert.Contains("top:", tooltip.GetAttribute("style"));
+        });
+
+        Assert.Equal(0, runtime.ImportCount);
+    }
+
+    [Fact]
+    public async Task ContainedTooltipRequestsMeasuredPlacementAndRemeasuresAfterResponsiveResize()
+    {
+        var observer = new RecordingJsObjectReference();
+        observer.SetupHandler("dispose", _ => null!);
+
+        var tooltipResponses = new Queue<string>([
+            """{"left":24,"top":32,"placement":"above"}""",
+            """{"left":40,"top":54,"placement":"below"}"""
+        ]);
+
+        var module = new RecordingJsObjectReference();
+        module.SetupResult("observeElementSize", observer);
+        module.SetupHandler("resolveTooltipPosition", _ => tooltipResponses.Dequeue());
+
+        var runtime = new RecordingJsRuntime(module);
+        Services.AddSingleton<IJSRuntime>(runtime);
+
+        var cut = RenderComponent<FireBarChart<BarDatum>>(parameters => parameters
+            .Add(component => component.Items, SampleData)
+            .Add(component => component.ValueSelector, item => item.Value)
+            .Add(component => component.LabelSelector, item => item.Label)
+            .Add(component => component.Responsive, true)
+            .Add(component => component.ConstrainTooltipToChartBounds, true)
+            .Add(component => component.Width, 600));
+
+        cut.FindAll("g.bar-group")[0].MouseOver();
+
+        cut.WaitForAssertion(() =>
+        {
+            var tooltip = cut.Find(".chart-tooltip");
+            Assert.Contains("chart-tooltip--contained", tooltip.GetAttribute("class"));
+            Assert.Contains("chart-tooltip--placement-above", tooltip.GetAttribute("class"));
+            Assert.Equal("left: 24.0px; top: 32.0px;", tooltip.GetAttribute("style"));
+        });
+
+        await cut.FindComponent<ChartSurface>().Instance.OnContainerWidthChanged(760);
+
+        cut.WaitForAssertion(() =>
+        {
+            var tooltip = cut.Find(".chart-tooltip");
+            Assert.Contains("chart-tooltip--placement-below", tooltip.GetAttribute("class"));
+            Assert.Equal("left: 40.0px; top: 54.0px;", tooltip.GetAttribute("style"));
+        });
+
+        Assert.Equal(2, module.Invocations.Count(invocation => invocation.Identifier == "resolveTooltipPosition"));
+    }
+
     private IRenderedComponent<FireBarChart<BarDatum>> RenderBarChart(IReadOnlyList<BarDatum> data) =>
         RenderComponent<FireBarChart<BarDatum>>(parameters => parameters
             .Add(component => component.Items, data)

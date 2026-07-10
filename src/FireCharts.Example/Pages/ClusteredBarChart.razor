@@ -1,0 +1,286 @@
+@page "/clusteredbarchart"
+
+@using System.Globalization
+@using FireCharts.Models
+
+<PageTitle>Clustered Bar Chart</PageTitle>
+
+<PageIntro Kicker="Grouped comparison"
+           Title="Clustered bars compare repeated series without hiding the individual values."
+           Description="This chart keeps the FireCharts item-first model while adding a shared category tooltip, so you can move across a cluster without losing the full series breakdown.">
+    <div class="stat-strip" aria-label="Clustered chart strengths">
+        <div class="stat-pill"><strong>Direct comparison</strong><span>Compare the same series across categories without reading totals back out of a stack.</span></div>
+        <div class="stat-pill"><strong>Series emphasis</strong><span>Hover the legend to trace one series across every cluster.</span></div>
+        <div class="stat-pill"><strong>Overlay ready</strong><span>Add target lines and annotations with the same aligned SVG content hook.</span></div>
+    </div>
+</PageIntro>
+
+<section class="chart-grid">
+    <ChartDemoCard Kicker="Vertical cluster"
+                   Title="Incident outcomes by station"
+                   Description="Each station keeps one shared tooltip across the full category band, which makes it easier to compare side-by-side bars and still read the full station detail.">
+        <ChildContent>
+            <FireClusteredBarChart TItem="StationCluster"
+                                   TSegment="StationMetric"
+                                   Title="Incident outcomes by station"
+                                   Description="Open, closed, and deferred incidents by station"
+                                   Width="680"
+                                   Height="420"
+                                   Responsive="true"
+                                   ConstrainTooltipToChartBounds="true"
+                                   Items="@Stations"
+                                   SegmentsSelector="item => item.Segments"
+                                   LabelSelector="item => item.Label"
+                                   SegmentValueSelector="segment => segment.Value"
+                                   SegmentLabelSelector="segment => segment.Label"
+                                   SegmentColorSelector="segment => segment.Color"
+                                   SegmentHoverColorSelector="segment => segment.HoverColor"
+                                   SelectedSegment="@SelectedSegment"
+                                   SelectedSegmentChanged="OnSelectedSegmentChanged"
+                                   BarWidthRatio="0.82"
+                                   GroupSpacing="0.12"
+                                   SeriesSpacing="0.16"
+                                   LegendPlacement="ChartLegendPlacement.Bottom">
+                <ChartContentTemplate Context="context">
+                    @{
+                        var goalY = context.ChartAreaBottom - (GoalValue / context.MaxValue) * context.ChartAreaHeight;
+                    }
+                    <line x1="@context.ChartAreaLeft"
+                          y1="@goalY"
+                          x2="@context.ChartAreaRight"
+                          y2="@goalY"
+                          stroke="#7a4f3d"
+                          stroke-width="2"
+                          stroke-dasharray="6 6" />
+                    <SvgText X="@(context.ChartAreaRight - 4)"
+                             Y="@(goalY - 6)"
+                             TextAnchor="end"
+                             CssClass="stacked-demo-goal"
+                             Content="@($"Goal {GoalValue.ToString("F0", CultureInfo.InvariantCulture)}")" />
+                </ChartContentTemplate>
+            </FireClusteredBarChart>
+        </ChildContent>
+        <FooterContent>
+            <p class="selection-note" role="status" aria-live="polite">
+                @if (SelectedSegment is not null)
+                {
+                    <span><strong>Selected:</strong> @SelectedSegment.CategoryLabel / @SelectedSegment.SeriesLabel</span>
+                }
+                else
+                {
+                    <span>Select a bar to keep one series/category pairing emphasized.</span>
+                }
+            </p>
+        </FooterContent>
+    </ChartDemoCard>
+
+    <ChartDemoCard Kicker="Interactive controls"
+                   Title="Tune the clustered chart"
+                   Description="Adjust orientation, spacing, and legend placement without changing the data model."
+                   WrapInScroll="false">
+        <ChildContent>
+            <div class="playground-layout">
+                <div class="playground-canvas">
+                    <div class="chart-scroll">
+                        <FireClusteredBarChart TItem="StationCluster"
+                                               TSegment="StationMetric"
+                                               Title="Clustered station metrics"
+                                               Description="Interactive clustered bar chart demo"
+                                               Width="680"
+                                               Height="420"
+                                               Responsive="true"
+                                               ConstrainTooltipToChartBounds="true"
+                                               Items="@Stations"
+                                               SegmentsSelector="item => item.Segments"
+                                               LabelSelector="item => item.Label"
+                                               SegmentValueSelector="segment => segment.Value"
+                                               SegmentLabelSelector="segment => segment.Label"
+                                               SegmentColorSelector="segment => segment.Color"
+                                               SegmentHoverColorSelector="segment => segment.HoverColor"
+                                               Horizontal="@PlaygroundHorizontal"
+                                               LegendPlacement="@PlaygroundLegendPlacement"
+                                               BarWidthRatio="@PlaygroundBarWidthRatio"
+                                               GroupSpacing="@PlaygroundGroupSpacing"
+                                               SeriesSpacing="@PlaygroundSeriesSpacing"
+                                               CornerRadius="@PlaygroundCornerRadius"
+                                               ShowLegend="@PlaygroundShowLegend"
+                                               ShowTooltip="@PlaygroundShowTooltip" />
+                    </div>
+                </div>
+
+                <div class="playground-panel">
+                    <div class="playground-panel__header">
+                        <div>
+                            <p class="section-kicker">Controls</p>
+                            <h3>Cluster options</h3>
+                        </div>
+                        <button type="button" class="button-link playground-reset" @onclick="ResetPlayground">Reset</button>
+                    </div>
+
+                    <div class="control-grid">
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundHorizontal" />
+                            <span>Horizontal layout</span>
+                        </label>
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundShowLegend" />
+                            <span>Show legend</span>
+                        </label>
+                        <label class="control-toggle">
+                            <input type="checkbox" @bind="PlaygroundShowTooltip" />
+                            <span>Show tooltip</span>
+                        </label>
+
+                        <label class="control-field">
+                            <span>Cluster width</span>
+                            <input type="range" min="0.3" max="1" step="0.05" @bind="PlaygroundBarWidthRatio" @bind:event="oninput" />
+                            <strong>@PlaygroundBarWidthRatio.ToString("0.00")</strong>
+                        </label>
+
+                        <label class="control-field">
+                            <span>Group spacing</span>
+                            <input type="range" min="0" max="0.4" step="0.02" @bind="PlaygroundGroupSpacing" @bind:event="oninput" />
+                            <strong>@PlaygroundGroupSpacing.ToString("0.00")</strong>
+                        </label>
+
+                        <label class="control-field">
+                            <span>Series spacing</span>
+                            <input type="range" min="0" max="0.4" step="0.02" @bind="PlaygroundSeriesSpacing" @bind:event="oninput" />
+                            <strong>@PlaygroundSeriesSpacing.ToString("0.00")</strong>
+                        </label>
+
+                        <label class="control-field">
+                            <span>Bar radius</span>
+                            <input type="range" min="0" max="12" step="1" @bind="PlaygroundCornerRadius" @bind:event="oninput" />
+                            <strong>@PlaygroundCornerRadius.ToString("0", CultureInfo.InvariantCulture) px</strong>
+                        </label>
+
+                        <label class="control-select">
+                            <span>Legend placement</span>
+                            <select @bind="PlaygroundLegendPlacement">
+                                <option value="@ChartLegendPlacement.Top">Top</option>
+                                <option value="@ChartLegendPlacement.Bottom">Bottom</option>
+                                <option value="@ChartLegendPlacement.Left">Left</option>
+                                <option value="@ChartLegendPlacement.Right">Right</option>
+                                <option value="@ChartLegendPlacement.Start">Start</option>
+                                <option value="@ChartLegendPlacement.End">End</option>
+                            </select>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </ChildContent>
+    </ChartDemoCard>
+</section>
+
+<ExampleDocsSection Title="Clustered bar chart code example"
+                    Description="Callers keep the same item-first model as stacked bars, but the chart renders each segment as an individual side-by-side bar."
+                    CodeTitle="Render a clustered bar chart"
+                    CodeDescription="This example shows the typed item + segment API with legend support and an aligned target line."
+                    CodeExample="@UsageExample"
+                    ApiTitle="Most useful parameters"
+                    ApiDescription="Use these first when you want grouped series comparison, spacing control, and per-bar interaction."
+                    ApiItems="@ApiItems" />
+
+@code {
+    private const double GoalValue = 20;
+
+    private ClusteredBarChartSegment<StationCluster, StationMetric>? SelectedSegment { get; set; }
+
+    private IReadOnlyList<StationCluster> Stations { get; } =
+    [
+        new("Station 1",
+        [
+            new StationMetric("Open", 24, "#d94f3d", "#a73728"),
+            new StationMetric("Closed", 13, "#198f8c", "#11696c"),
+            new StationMetric("Deferred", 7, "#8a7cf6", "#6257c4")
+        ]),
+        new("Station 3",
+        [
+            new StationMetric("Open", 18, "#d94f3d", "#a73728"),
+            new StationMetric("Closed", 21, "#198f8c", "#11696c"),
+            new StationMetric("Deferred", 5, "#8a7cf6", "#6257c4")
+        ]),
+        new("Station 8",
+        [
+            new StationMetric("Open", 27, "#d94f3d", "#a73728"),
+            new StationMetric("Closed", 11, "#198f8c", "#11696c"),
+            new StationMetric("Deferred", 9, "#8a7cf6", "#6257c4")
+        ])
+    ];
+
+    private bool PlaygroundHorizontal { get; set; }
+    private bool PlaygroundShowLegend { get; set; } = true;
+    private bool PlaygroundShowTooltip { get; set; } = true;
+    private double PlaygroundBarWidthRatio { get; set; } = 0.82;
+    private double PlaygroundGroupSpacing { get; set; } = 0.12;
+    private double PlaygroundSeriesSpacing { get; set; } = 0.16;
+    private double PlaygroundCornerRadius { get; set; } = 3;
+    private ChartLegendPlacement PlaygroundLegendPlacement { get; set; } = ChartLegendPlacement.End;
+
+    private Task OnSelectedSegmentChanged(ClusteredBarChartSegment<StationCluster, StationMetric>? segment)
+    {
+        SelectedSegment = segment;
+        return Task.CompletedTask;
+    }
+
+    private void ResetPlayground()
+    {
+        PlaygroundHorizontal = false;
+        PlaygroundShowLegend = true;
+        PlaygroundShowTooltip = true;
+        PlaygroundBarWidthRatio = 0.82;
+        PlaygroundGroupSpacing = 0.12;
+        PlaygroundSeriesSpacing = 0.16;
+        PlaygroundCornerRadius = 3;
+        PlaygroundLegendPlacement = ChartLegendPlacement.End;
+    }
+
+    private string UsageExample => """
+@using FireCharts.Components
+@using FireCharts.Models
+
+<FireClusteredBarChart TItem="StationCluster"
+                       TSegment="StationMetric"
+                       Title="Incident outcomes by station"
+                       Description="Open, closed, and deferred incidents by station"
+                       Width="680"
+                       Height="420"
+                       Responsive="true"
+                       Items="@Stations"
+                       SegmentsSelector="item => item.Segments"
+                       LabelSelector="item => item.Label"
+                       SegmentValueSelector="segment => segment.Value"
+                       SegmentLabelSelector="segment => segment.Label"
+                       SegmentColorSelector="segment => segment.Color"
+                       SegmentHoverColorSelector="segment => segment.HoverColor"
+                       BarWidthRatio="0.82"
+                       GroupSpacing="0.12"
+                       SeriesSpacing="0.16"
+                       LegendPlacement="ChartLegendPlacement.Bottom">
+    <ChartContentTemplate Context="context">
+        <line x1="@context.ChartAreaLeft"
+              y1="@context.ChartAreaTop"
+              x2="@context.ChartAreaRight"
+              y2="@context.ChartAreaTop"
+              stroke="#7a4f3d"
+              stroke-width="2"
+              stroke-dasharray="6 6" />
+    </ChartContentTemplate>
+</FireClusteredBarChart>
+""";
+
+    private IReadOnlyList<ExampleApiItem> ApiItems { get; } =
+    [
+        new("SegmentsSelector", "Maps each category item to the series bars that should render inside its cluster."),
+        new("SelectedSegment", "Tracks the individual bar that is selected so the chart can persist comparison state."),
+        new("GroupSpacing", "Controls how much space separates one category cluster from the next."),
+        new("SeriesSpacing", "Controls the gap between adjacent bars inside the same cluster."),
+        new("LegendPlacement", "Moves the series legend to the top, bottom, left, right, start, or end of the chart shell."),
+        new("ChartContentTemplate", "Lets you inject aligned SVG annotations like goal lines inside the chart area.")
+    ];
+
+    private sealed record StationCluster(string Label, IReadOnlyList<StationMetric> Segments);
+
+    private sealed record StationMetric(string Label, double Value, string Color, string HoverColor);
+}

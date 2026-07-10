@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Bunit;
 using FireCharts.Components;
 using FireCharts.Models;
@@ -230,6 +231,159 @@ public sealed class FireHeatmapChartTests : TestContext
         });
     }
 
+    [Fact]
+    public void CanvasRenderModeUsesCanvasLayerAndCanvasInterop()
+    {
+        var runtime = CreateRuntime();
+        Services.AddSingleton<IJSRuntime>(runtime);
+
+        var cut = RenderComponent<FireHeatmapChart<HeatDatum>>(parameters => parameters
+            .Add(component => component.Items, SampleData)
+            .Add(component => component.RowKeySelector, item => item.RowKey)
+            .Add(component => component.RowLabelSelector, item => item.RowLabel)
+            .Add(component => component.RowOrderSelector, item => item.RowOrder)
+            .Add(component => component.ColumnKeySelector, item => item.ColumnKey)
+            .Add(component => component.ColumnLabelSelector, item => item.ColumnLabel)
+            .Add(component => component.ColumnOrderSelector, item => item.ColumnOrder)
+            .Add(component => component.ValueSelector, item => item.Value)
+            .Add(component => component.RenderMode, HeatmapRenderMode.Canvas));
+
+        Assert.Empty(cut.FindAll("g.heatmap-cell-group"));
+        Assert.Single(cut.FindAll("canvas.heatmap-canvas-layer"));
+        Assert.Single(cut.FindAll(".heatmap-canvas-interaction-layer"));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains(runtime.Module.Invocations, invocation => invocation.Identifier == "upsertHeatmap");
+        });
+    }
+
+    [Fact]
+    public async Task CanvasRenderModeSupportsPointerAndKeyboardInteractions()
+    {
+        var runtime = CreateRuntime();
+        Services.AddSingleton<IJSRuntime>(runtime);
+
+        HeatmapCellInteraction<HeatDatum>? hovered = null;
+        HeatDatum? selected = null;
+        HeatmapCellInteraction<HeatDatum>? clicked = null;
+
+        var cut = RenderComponent<FireHeatmapChart<HeatDatum>>(parameters => parameters
+            .Add(component => component.Items, SampleData)
+            .Add(component => component.RowKeySelector, item => item.RowKey)
+            .Add(component => component.RowLabelSelector, item => item.RowLabel)
+            .Add(component => component.RowOrderSelector, item => item.RowOrder)
+            .Add(component => component.ColumnKeySelector, item => item.ColumnKey)
+            .Add(component => component.ColumnLabelSelector, item => item.ColumnLabel)
+            .Add(component => component.ColumnOrderSelector, item => item.ColumnOrder)
+            .Add(component => component.ValueSelector, item => item.Value)
+            .Add(component => component.RenderMode, HeatmapRenderMode.Canvas)
+            .Add(component => component.OnCellHoverChanged, (Action<HeatmapCellInteraction<HeatDatum>>)(interaction => hovered = interaction))
+            .Add(component => component.OnCellClick, (Action<HeatmapCellInteraction<HeatDatum>>)(interaction => clicked = interaction))
+            .Add(component => component.SelectedItemChanged, (Action<HeatDatum?>)(item => selected = item)));
+
+        var interactionLayer = cut.Find(".heatmap-canvas-interaction-layer");
+        interactionLayer.Focus();
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(hovered);
+            Assert.Equal(("Mon", "6a"), (hovered!.RowLabel, hovered.ColumnLabel));
+            Assert.Single(cut.FindAll(".chart-tooltip"));
+        });
+
+        interactionLayer.KeyDown(new KeyboardEventArgs { Key = "ArrowRight" });
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(("Mon", "7a"), (hovered!.RowLabel, hovered.ColumnLabel));
+            Assert.Contains("12", cut.Find(".chart-tooltip").TextContent);
+        });
+
+        interactionLayer.KeyDown(new KeyboardEventArgs { Key = "Enter" });
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.NotNull(selected);
+            Assert.Equal(("mon", "07"), (selected!.RowKey, selected.ColumnKey));
+            Assert.NotNull(clicked);
+            Assert.Equal(("Mon", "7a"), (clicked!.RowLabel, clicked.ColumnLabel));
+        });
+
+        await cut.FindComponent<HeatmapCanvasLayer>().Instance.NotifyPointerMove(1, 0);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(("Tue", "6a"), (hovered!.RowLabel, hovered.ColumnLabel));
+        });
+
+        await cut.FindComponent<HeatmapCanvasLayer>().Instance.NotifyClick(1, 1);
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Equal(("tue", "07"), (selected!.RowKey, selected.ColumnKey));
+            Assert.Equal(("Tue", "7a"), (clicked!.RowLabel, clicked.ColumnLabel));
+        });
+    }
+
+    [Fact]
+    public void AutoRenderModePromotesLargeHeatmapsToCanvas()
+    {
+        var runtime = CreateRuntime();
+        Services.AddSingleton<IJSRuntime>(runtime);
+
+        var denseItems = BuildDenseData(30, 30);
+        var cut = RenderComponent<FireHeatmapChart<HeatDatum>>(parameters => parameters
+            .Add(component => component.Items, denseItems)
+            .Add(component => component.RowKeySelector, item => item.RowKey)
+            .Add(component => component.RowLabelSelector, item => item.RowLabel)
+            .Add(component => component.RowOrderSelector, item => item.RowOrder)
+            .Add(component => component.ColumnKeySelector, item => item.ColumnKey)
+            .Add(component => component.ColumnLabelSelector, item => item.ColumnLabel)
+            .Add(component => component.ColumnOrderSelector, item => item.ColumnOrder)
+            .Add(component => component.ValueSelector, item => item.Value)
+            .Add(component => component.RenderMode, HeatmapRenderMode.Auto)
+            .Add(component => component.AutoCanvasCellThreshold, 200)
+            .Add(component => component.Width, 280)
+            .Add(component => component.Height, 180));
+
+        Assert.Empty(cut.FindAll("g.heatmap-cell-group"));
+        Assert.Single(cut.FindAll("canvas.heatmap-canvas-layer"));
+
+        cut.WaitForAssertion(() =>
+        {
+            Assert.Contains(runtime.Module.Invocations, invocation => invocation.Identifier == "upsertHeatmap");
+        });
+    }
+
+    [Fact]
+    public void DenseCanvasFallbackSimplifiesTinyCells()
+    {
+        var runtime = CreateRuntime();
+        Services.AddSingleton<IJSRuntime>(runtime);
+
+        var denseItems = BuildDenseData(30, 30, includeGap: true);
+        _ = RenderComponent<FireHeatmapChart<HeatDatum>>(parameters => parameters
+            .Add(component => component.Items, denseItems)
+            .Add(component => component.RowKeySelector, item => item.RowKey)
+            .Add(component => component.RowLabelSelector, item => item.RowLabel)
+            .Add(component => component.RowOrderSelector, item => item.RowOrder)
+            .Add(component => component.ColumnKeySelector, item => item.ColumnKey)
+            .Add(component => component.ColumnLabelSelector, item => item.ColumnLabel)
+            .Add(component => component.ColumnOrderSelector, item => item.ColumnOrder)
+            .Add(component => component.ValueSelector, item => item.Value)
+            .Add(component => component.RenderMode, HeatmapRenderMode.Canvas)
+            .Add(component => component.Width, 280)
+            .Add(component => component.Height, 180));
+
+        var renderInvocation = runtime.Module.Invocations.Last(invocation => invocation.Identifier == "upsertHeatmap");
+        var requestJson = Assert.IsType<string>(renderInvocation.Arguments[2]);
+
+        using var request = JsonDocument.Parse(requestJson);
+        Assert.Equal(0, request.RootElement.GetProperty("cornerRadius").GetDouble());
+        Assert.Empty(request.RootElement.GetProperty("placeholderCells").EnumerateArray());
+    }
+
     private IRenderedComponent<FireHeatmapChart<HeatDatum>> RenderHeatmap(IReadOnlyList<HeatDatum> items) =>
         RenderComponent<FireHeatmapChart<HeatDatum>>(parameters => parameters
             .Add(component => component.Items, items)
@@ -248,8 +402,38 @@ public sealed class FireHeatmapChartTests : TestContext
 
         var module = new RecordingJsObjectReference();
         module.SetupResult("observeElementSize", observer);
+        module.SetupHandler("upsertHeatmap", _ => null!);
+        module.SetupHandler("updateHeatmapState", _ => null!);
+        module.SetupHandler("disposeHeatmap", _ => null!);
 
         return new RecordingJsRuntime(module);
+    }
+
+    private static IReadOnlyList<HeatDatum> BuildDenseData(int rowCount, int columnCount, bool includeGap = false)
+    {
+        var items = new List<HeatDatum>(rowCount * columnCount);
+
+        for (var row = 0; row < rowCount; row++)
+        {
+            for (var column = 0; column < columnCount; column++)
+            {
+                if (includeGap && row == rowCount - 1 && column == columnCount - 1)
+                {
+                    continue;
+                }
+
+                items.Add(new HeatDatum(
+                    $"r{row:D2}",
+                    $"R{row:D2}",
+                    row,
+                    $"c{column:D2}",
+                    $"C{column:D2}",
+                    column,
+                    row + column));
+            }
+        }
+
+        return items;
     }
 
     private static readonly HeatDatum[] SampleData =

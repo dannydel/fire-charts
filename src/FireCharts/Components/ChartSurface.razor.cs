@@ -31,6 +31,7 @@ public partial class ChartSurface : ComponentBase, IAsyncDisposable
     [Parameter] public RenderFragment? OverlayContent { get; set; }
 
     internal ChartSurfaceContext Context => new(ResolvedWidth, ResolvedHeight);
+    internal ElementReference HostElement => _hostElement;
 
     internal double ResolvedWidth =>
         Math.Max(Responsive && _observedWidth is > 0 ? _observedWidth.Value : Width, DefaultMinWidth);

@@ -16,6 +16,13 @@ A lightweight Blazor charting library with an example app and test project.
 - `FirePieChart`
 - `FireScatterChart`
 - `FireHeatmapChart`
+- `FireWaterfallChart`
+
+## Heatmap Rendering
+
+- `FireHeatmapChart` supports `RenderMode="Svg"`, `RenderMode="Canvas"`, and `RenderMode="Auto"`.
+- `Auto` promotes larger matrices to the canvas renderer once the matrix reaches the `AutoCanvasCellThreshold`.
+- Dense canvas heatmaps automatically simplify tiny cells by removing rounded corners and skipping placeholder fills.
 
 ## Quick Start
 

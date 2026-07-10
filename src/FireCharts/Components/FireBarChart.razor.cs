@@ -13,6 +13,7 @@ public partial class FireBarChart<TItem> : ComponentBase
     private int? _focusedIndex;
     private double? _renderWidth;
     private double? _renderHeight;
+    private double _computedMaxValue = 100;
 
     [Parameter] public string Title { get; set; } = "Bar Chart";
     [Parameter] public string Description { get; set; } = "";
@@ -37,6 +38,7 @@ public partial class FireBarChart<TItem> : ComponentBase
     [Parameter] public bool ShowAxisLabels { get; set; } = true;
     [Parameter] public bool ShowValueLabels { get; set; } = true;
     [Parameter] public bool ShowTooltip { get; set; } = true;
+    [Parameter] public bool ConstrainTooltipToChartBounds { get; set; }
     [Parameter] public int GridLineCount { get; set; } = 5;
     [Parameter] public string BarColor { get; set; } = "#4e79a7";
     [Parameter] public string HoverColor { get; set; } = "#2e5a87";
@@ -65,55 +67,7 @@ public partial class FireBarChart<TItem> : ComponentBase
     internal int SafeGridLineCount => Math.Max(GridLineCount, 1);
     internal double SafeBarSpacing => Math.Clamp(BarSpacing, 0, 0.9);
 
-    internal double ComputedMaxValue
-    {
-        get
-        {
-            if (MaxValue.HasValue && MaxValue.Value > 0 && double.IsFinite(MaxValue.Value))
-            {
-                return MaxValue.Value;
-            }
-
-            var max = Items is null
-                ? 0
-                : Items
-                    .Select(ValueSelectorOrThrow)
-                    .Where(double.IsFinite)
-                    .DefaultIfEmpty(0)
-                    .Max();
-
-            if (max <= 0)
-            {
-                return 100;
-            }
-
-            var log = Math.Log10(max);
-            if (!double.IsFinite(log))
-            {
-                return 100;
-            }
-
-            var magnitude = Math.Pow(10, Math.Floor(log));
-            if (magnitude <= 0 || !double.IsFinite(magnitude))
-            {
-                return 100;
-            }
-
-            var normalized = max / magnitude;
-
-            double nice;
-            if (normalized <= 1) nice = 1;
-            else if (normalized <= 1.5) nice = 1.5;
-            else if (normalized <= 2) nice = 2;
-            else if (normalized <= 3) nice = 3;
-            else if (normalized <= 5) nice = 5;
-            else if (normalized <= 7.5) nice = 7.5;
-            else nice = 10;
-
-            var result = nice * magnitude;
-            return double.IsFinite(result) && result > 0 ? result : 100;
-        }
-    }
+    internal double ComputedMaxValue => _computedMaxValue;
 
     protected override void OnParametersSet()
     {
@@ -132,9 +86,12 @@ public partial class FireBarChart<TItem> : ComponentBase
         var items = Items ?? Array.Empty<TItem>();
         var comparer = EqualityComparer<TItem>.Default;
         var selectedItem = SelectedItem;
+        var computedMaxValue = ResolveComputedMaxValue(items);
+
+        _computedMaxValue = computedMaxValue;
 
         _points = new ReadOnlyCollection<BarChartPoint<TItem>>(items
-            .Select((item, index) => CreatePoint(item, index, comparer.Equals(item, selectedItem)))
+            .Select((item, index) => CreatePoint(item, index, comparer.Equals(item, selectedItem), computedMaxValue))
             .ToList());
 
         if (_hoveredIndex is int hovered && hovered >= _points.Count)
@@ -162,9 +119,9 @@ public partial class FireBarChart<TItem> : ComponentBase
         RebuildPoints();
     }
 
-    private BarChartPoint<TItem> CreatePoint(TItem item, int index, bool isSelected)
+    private BarChartPoint<TItem> CreatePoint(TItem item, int index, bool isSelected, double computedMaxValue)
     {
-        var rect = GetBarRect(index, item);
+        var rect = GetBarRect(index, item, computedMaxValue);
         var label = LabelSelectorOrThrow(item);
         var value = SanitizeValue(ValueSelectorOrThrow(item));
         var tooltipText = TooltipTextSelector?.Invoke(item);
@@ -183,7 +140,7 @@ public partial class FireBarChart<TItem> : ComponentBase
             _focusedIndex == index);
     }
 
-    private SvgRect GetBarRect(int index, TItem item)
+    private SvgRect GetBarRect(int index, TItem item, double computedMaxValue)
     {
         var itemCount = Items?.Count ?? 0;
         if (itemCount == 0 || index < 0 || index >= itemCount)
@@ -192,8 +149,7 @@ public partial class FireBarChart<TItem> : ComponentBase
         }
 
         var barValue = SanitizeValue(ValueSelectorOrThrow(item));
-        var maxVal = ComputedMaxValue;
-        var scale = maxVal > 0 ? barValue / maxVal : 0;
+        var scale = computedMaxValue > 0 ? barValue / computedMaxValue : 0;
         scale = Math.Clamp(scale, 0, 1);
 
         if (Horizontal)
@@ -275,30 +231,31 @@ public partial class FireBarChart<TItem> : ComponentBase
         }
     }
 
+    private SvgPoint GetTooltipAnchor(BarChartPoint<TItem> point) =>
+        new(point.Rect.X + (point.Rect.Width / 2), Math.Max(point.Rect.Y - 12, 8));
+
     private string GetTooltipStyle(BarChartPoint<TItem> point)
     {
-        var centerX = point.Rect.X + point.Rect.Width / 2;
-        var top = Math.Max(point.Rect.Y - 12, 8);
-        return $"left: {Fmt(centerX)}px; top: {Fmt(top)}px;";
+        var anchor = GetTooltipAnchor(point);
+        return $"left: {Fmt(anchor.X)}px; top: {Fmt(anchor.Y)}px;";
     }
 
     private string GetPointClasses(BarChartPoint<TItem> point)
     {
         var classes = new List<string> { "bar-group" };
-        if (point.IsHovered) classes.Add("is-hovered");
-        if (point.IsFocused) classes.Add("is-focused");
-        if (point.IsSelected) classes.Add("is-selected");
+        if (_hoveredIndex == point.Index) classes.Add("is-hovered");
+        if (_focusedIndex == point.Index) classes.Add("is-focused");
+        if (point.IsSelected || IsSelected(point)) classes.Add("is-selected");
         return string.Join(" ", classes);
     }
 
-    private async Task RefreshPointsAsync()
-    {
-        RebuildPoints();
-        await InvokeAsync(StateHasChanged);
-    }
+    private Task RefreshPointsAsync() => InvokeAsync(StateHasChanged);
 
     private ChartPointInteraction<TItem> ToInteraction(BarChartPoint<TItem> point) =>
         new(point.Item, point.Index, point.Label, point.Value);
+
+    private bool IsSelected(BarChartPoint<TItem> point) =>
+        EqualityComparer<TItem>.Default.Equals(point.Item, SelectedItem);
 
     private double ValueSelectorOrThrow(TItem item) => ValueSelector!(item);
 
@@ -311,4 +268,49 @@ public partial class FireBarChart<TItem> : ComponentBase
 
     private static double SanitizeValue(double value) =>
         double.IsFinite(value) ? Math.Max(value, 0) : 0;
+
+    private double ResolveComputedMaxValue(IReadOnlyList<TItem> items)
+    {
+        if (MaxValue.HasValue && MaxValue.Value > 0 && double.IsFinite(MaxValue.Value))
+        {
+            return MaxValue.Value;
+        }
+
+        var max = items
+            .Select(ValueSelectorOrThrow)
+            .Where(double.IsFinite)
+            .DefaultIfEmpty(0)
+            .Max();
+
+        if (max <= 0)
+        {
+            return 100;
+        }
+
+        var log = Math.Log10(max);
+        if (!double.IsFinite(log))
+        {
+            return 100;
+        }
+
+        var magnitude = Math.Pow(10, Math.Floor(log));
+        if (magnitude <= 0 || !double.IsFinite(magnitude))
+        {
+            return 100;
+        }
+
+        var normalized = max / magnitude;
+
+        double nice;
+        if (normalized <= 1) nice = 1;
+        else if (normalized <= 1.5) nice = 1.5;
+        else if (normalized <= 2) nice = 2;
+        else if (normalized <= 3) nice = 3;
+        else if (normalized <= 5) nice = 5;
+        else if (normalized <= 7.5) nice = 7.5;
+        else nice = 10;
+
+        var result = nice * magnitude;
+        return double.IsFinite(result) && result > 0 ? result : 100;
+    }
 }
