@@ -1,7 +1,7 @@
+using FireCharts.Interaction;
 using FireCharts.Models;
 using FireCharts.Scales;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Web;
 using System.Collections.ObjectModel;
 using System.Globalization;
 
@@ -26,9 +26,8 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
     private IReadOnlyList<ScaleTick> _valueAxisTicks = Array.Empty<ScaleTick>();
     private double _computedMaxValue = 100;
     private int? _hoveredBarIndex;
-    private int? _hoveredSegmentIndex;
-    private int? _focusedSegmentIndex;
     private PlotArea _plot;
+    private ChartInteraction<StackedBarChartSegment<TItem, TSegment>, int> _interaction = default!;
     private string? _hoveredLegendLabel;
 
     [Parameter] public string Title { get; set; } = "Stacked Bar Chart";
@@ -74,7 +73,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
     internal IReadOnlyList<StackedBarChartSegment<TItem, TSegment>> Segments => _segments;
     internal IReadOnlyList<BarState> Bars => _bars;
     internal IReadOnlyList<LegendItem> LegendItems => _legendItems;
-    internal StackedBarChartSegment<TItem, TSegment>? HoveredSegment => _hoveredSegmentIndex is int index && index >= 0 && index < _segments.Count ? _segments[index] : null;
+    internal StackedBarChartSegment<TItem, TSegment>? HoveredSegment => _interaction.Hovered;
     internal bool UsesSharedTooltip => TooltipInteractionMode == BarTooltipInteractionMode.Shared;
     internal int SafeGridLineCount => Math.Max(GridLineCount, 1);
     internal bool HasLegendHover => !string.IsNullOrWhiteSpace(_hoveredLegendLabel);
@@ -86,7 +85,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
     internal BarState? TooltipBar => TooltipBarIndex is int index
         ? index >= 0 && index < _bars.Count ? _bars[index] : null
         : null;
-    internal StackedBarChartSegment<TItem, TSegment>? FocusedSegment => _focusedSegmentIndex is int index && index >= 0 && index < _segments.Count ? _segments[index] : null;
+    internal StackedBarChartSegment<TItem, TSegment>? FocusedSegment => _interaction.Focused;
     internal StackedBarChartSegment<TItem, TSegment>? TooltipActiveSegment
     {
         get
@@ -118,6 +117,24 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 
     internal double ComputedMaxValue => _computedMaxValue;
     internal IReadOnlyList<ScaleTick> ValueAxisTicks => _valueAxisTicks;
+
+    protected override void OnInitialized()
+    {
+        _interaction = new ChartInteraction<StackedBarChartSegment<TItem, TSegment>, int>(
+            new ChartInteractionOptions<StackedBarChartSegment<TItem, TSegment>, int>
+            {
+                KeySelector = FindSegmentIndex,
+                RequestRender = () => InvokeAsync(StateHasChanged),
+                OnActiveChanged = segment => OnPointHoverChanged.InvokeAsync(ToInteraction(segment)),
+                OnActivate = async segment =>
+                {
+                    SelectedItem = segment.Item;
+                    await InvokeAsync(StateHasChanged);
+                    await SelectedItemChanged.InvokeAsync(segment.Item);
+                    await OnPointClick.InvokeAsync(ToInteraction(segment));
+                }
+            });
+    }
 
     protected override void OnParametersSet()
     {
@@ -230,20 +247,11 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
         _segments = new ReadOnlyCollection<StackedBarChartSegment<TItem, TSegment>>(segments);
         _segmentIndexByKey = segmentIndexByKey;
         _legendItems = new ReadOnlyCollection<LegendItem>(legendMap.Values.ToList());
+        _interaction.SetElements(_segments);
 
         if (_hoveredBarIndex is int hoveredBar && !_bars.Any(bar => bar.Index == hoveredBar && bar.Segments.Count > 0))
         {
             _hoveredBarIndex = null;
-        }
-
-        if (_hoveredSegmentIndex is int hovered && (hovered < 0 || hovered >= _segments.Count))
-        {
-            _hoveredSegmentIndex = null;
-        }
-
-        if (_focusedSegmentIndex is int focused && (focused < 0 || focused >= _segments.Count))
-        {
-            _focusedSegmentIndex = null;
         }
 
         if (_hoveredLegendLabel is not null && !_legendItems.Any(item => item.Label == _hoveredLegendLabel))
@@ -317,80 +325,12 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
         return Task.CompletedTask;
     }
 
-    private async Task HandleHoverAsync(StackedBarChartSegment<TItem, TSegment> segment)
-    {
-        var index = FindSegmentIndex(segment);
-        if (index < 0)
-        {
-            return;
-        }
-
-        if (_hoveredSegmentIndex == index)
-        {
-            return;
-        }
-
-        _hoveredSegmentIndex = index;
-        await RefreshChartAsync();
-        await OnPointHoverChanged.InvokeAsync(ToInteraction(HoveredSegment!));
-    }
-
-    private async Task HandleHoverLeaveAsync(StackedBarChartSegment<TItem, TSegment> segment)
-    {
-        if (UsesSharedTooltip)
-        {
-            return;
-        }
-
-        var index = FindSegmentIndex(segment);
-        if (index < 0)
-        {
-            return;
-        }
-
-        if (_hoveredSegmentIndex != index || _focusedSegmentIndex == index)
-        {
-            return;
-        }
-
-        _hoveredSegmentIndex = null;
-        await RefreshChartAsync();
-    }
-
-    private async Task HandleFocusAsync(StackedBarChartSegment<TItem, TSegment> segment)
-    {
-        var index = FindSegmentIndex(segment);
-        if (index < 0)
-        {
-            return;
-        }
-
-        _focusedSegmentIndex = index;
-        _hoveredSegmentIndex = index;
-        await RefreshChartAsync();
-        await OnPointHoverChanged.InvokeAsync(ToInteraction(HoveredSegment!));
-    }
-
-    private async Task HandleBlurAsync(StackedBarChartSegment<TItem, TSegment> segment)
-    {
-        var index = FindSegmentIndex(segment);
-        if (index < 0)
-        {
-            return;
-        }
-
-        if (_focusedSegmentIndex == index)
-        {
-            _focusedSegmentIndex = null;
-        }
-
-        if (_hoveredSegmentIndex == index)
-        {
-            _hoveredSegmentIndex = null;
-        }
-
-        await RefreshChartAsync();
-    }
+    /// <summary>
+    /// Individual segment mouse-out is suppressed while the shared tooltip is active: the bar-level
+    /// rollup (<see cref="HandleBarLeaveAsync"/>) owns clearing hover in that mode.
+    /// </summary>
+    private Task HandleSegmentHoverLeaveAsync(StackedBarChartSegment<TItem, TSegment> segment) =>
+        UsesSharedTooltip ? Task.CompletedTask : _interaction.HoverLeaveAsync(segment);
 
     private async Task HandleBarEnterAsync(BarState bar)
     {
@@ -401,11 +341,9 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 
         _hoveredBarIndex = bar.Index;
 
-        if (HoveredSegment is not null &&
-            HoveredSegment.BarIndex != bar.Index &&
-            FocusedSegment?.Key != HoveredSegment.Key)
+        if (HoveredSegment is not null && HoveredSegment.BarIndex != bar.Index)
         {
-            _hoveredSegmentIndex = null;
+            await _interaction.HoverLeaveKeyAsync(_interaction.HoveredKey!.Value);
         }
 
         await RefreshChartAsync();
@@ -420,29 +358,12 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 
         _hoveredBarIndex = null;
 
-        if (HoveredSegment?.BarIndex == bar.Index &&
-            FocusedSegment?.Key != HoveredSegment.Key)
+        if (HoveredSegment?.BarIndex == bar.Index)
         {
-            _hoveredSegmentIndex = null;
+            await _interaction.HoverLeaveKeyAsync(_interaction.HoveredKey!.Value);
         }
 
         await RefreshChartAsync();
-    }
-
-    private async Task HandleSelectAsync(StackedBarChartSegment<TItem, TSegment> segment)
-    {
-        SelectedItem = segment.Item;
-        await RefreshChartAsync();
-        await SelectedItemChanged.InvokeAsync(segment.Item);
-        await OnPointClick.InvokeAsync(ToInteraction(segment));
-    }
-
-    private async Task HandleKeyDownAsync(KeyboardEventArgs args, StackedBarChartSegment<TItem, TSegment> segment)
-    {
-        if (args.Key is "Enter" or " ")
-        {
-            await HandleSelectAsync(segment);
-        }
     }
 
     private async Task HandleLegendEnter(string label)
@@ -639,16 +560,10 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
     private bool IsHovered(StackedBarChartSegment<TItem, TSegment> segment) =>
         UsesSharedTooltip
             ? TooltipBarIndex == segment.BarIndex
-            : _hoveredSegmentIndex is int index &&
-              index >= 0 &&
-              index < _segments.Count &&
-              string.Equals(_segments[index].Key, segment.Key, StringComparison.Ordinal);
+            : _interaction.IsHovered(segment);
 
     private bool IsFocused(StackedBarChartSegment<TItem, TSegment> segment) =>
-        _focusedSegmentIndex is int index &&
-        index >= 0 &&
-        index < _segments.Count &&
-        string.Equals(_segments[index].Key, segment.Key, StringComparison.Ordinal);
+        _interaction.IsFocused(segment);
 
     private IReadOnlyList<TSegment> SegmentsSelectorOrThrow(TItem item) => SegmentsSelector!(item);
 

@@ -1,9 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using FireCharts.Interaction;
 using FireCharts.Models;
 using FireCharts.Scales;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Web;
 
 namespace FireCharts.Components;
 
@@ -24,9 +24,8 @@ public partial class FireWaterfallChart<TItem> : ComponentBase
     private IReadOnlyList<WaterfallChartPoint<TItem>> _points = Array.Empty<WaterfallChartPoint<TItem>>();
     private IReadOnlyList<AxisTick> _yAxisTicks = Array.Empty<AxisTick>();
     private IReadOnlyList<Connector> _connectors = Array.Empty<Connector>();
-    private int? _hoveredIndex;
-    private int? _focusedIndex;
     private PlotArea _plot;
+    private ChartInteraction<WaterfallChartPoint<TItem>, int> _interaction = default!;
     private double _scaleMin;
     private double _scaleMax;
 
@@ -74,10 +73,27 @@ public partial class FireWaterfallChart<TItem> : ComponentBase
     private IReadOnlyList<WaterfallChartPoint<TItem>> Points => _points;
     private IReadOnlyList<AxisTick> YAxisTicks => _yAxisTicks;
     private IReadOnlyList<Connector> Connectors => _connectors;
-    private WaterfallChartPoint<TItem>? HoveredPoint => _hoveredIndex is int index && index >= 0 && index < _points.Count ? _points[index] : null;
+    private WaterfallChartPoint<TItem>? HoveredPoint => _interaction.Hovered;
     private int SafeGridLineCount => Math.Max(GridLineCount, 2);
     private double SafeCornerRadius => Math.Clamp(CornerRadius, 0, 16);
     private double ZeroLineY => MapY(0, _scaleMin, _scaleMax);
+
+    protected override void OnInitialized()
+    {
+        _interaction = new ChartInteraction<WaterfallChartPoint<TItem>, int>(new ChartInteractionOptions<WaterfallChartPoint<TItem>, int>
+        {
+            KeySelector = point => point.Index,
+            RequestRender = () => InvokeAsync(StateHasChanged),
+            OnActiveChanged = point => OnPointHoverChanged.InvokeAsync(ToInteraction(point)),
+            OnActivate = async point =>
+            {
+                SelectedItem = point.Item;
+                await InvokeAsync(StateHasChanged);
+                await SelectedItemChanged.InvokeAsync(point.Item);
+                await OnPointClick.InvokeAsync(ToInteraction(point));
+            }
+        });
+    }
 
     protected override void OnParametersSet()
     {
@@ -99,8 +115,7 @@ public partial class FireWaterfallChart<TItem> : ComponentBase
             _points = Array.Empty<WaterfallChartPoint<TItem>>();
             _yAxisTicks = Array.Empty<AxisTick>();
             _connectors = Array.Empty<Connector>();
-            _hoveredIndex = null;
-            _focusedIndex = null;
+            _interaction.SetElements(_points);
             _scaleMin = 0;
             _scaleMax = 0;
             return;
@@ -152,8 +167,8 @@ public partial class FireWaterfallChart<TItem> : ComponentBase
                 hoverFill,
                 segment.EndValue >= segment.StartValue,
                 comparer.Equals(segment.Item, SelectedItem),
-                _hoveredIndex == segment.Index,
-                _focusedIndex == segment.Index,
+                _interaction.HoveredKey == segment.Index,
+                _interaction.FocusedKey == segment.Index,
                 segment.AccessibleLabel));
 
             if (ShowConnectors && index < segments.Count - 1)
@@ -168,16 +183,7 @@ public partial class FireWaterfallChart<TItem> : ComponentBase
 
         _points = new ReadOnlyCollection<WaterfallChartPoint<TItem>>(renderedPoints);
         _connectors = new ReadOnlyCollection<Connector>(connectors);
-
-        if (_hoveredIndex is int hovered && (hovered < 0 || hovered >= _points.Count))
-        {
-            _hoveredIndex = null;
-        }
-
-        if (_focusedIndex is int focused && (focused < 0 || focused >= _points.Count))
-        {
-            _focusedIndex = null;
-        }
+        _interaction.SetElements(_points);
     }
 
     private List<RawPoint> BuildRawPoints()
@@ -276,76 +282,11 @@ public partial class FireWaterfallChart<TItem> : ComponentBase
         return Task.CompletedTask;
     }
 
-    private async Task HandleHoverAsync(WaterfallChartPoint<TItem> point)
-    {
-        if (_hoveredIndex == point.Index)
-        {
-            return;
-        }
-
-        _hoveredIndex = point.Index;
-        await RefreshPointsAsync();
-        await OnPointHoverChanged.InvokeAsync(ToInteraction(HoveredPoint!));
-    }
-
-    private async Task HandleHoverLeaveAsync(WaterfallChartPoint<TItem> point)
-    {
-        if (_hoveredIndex != point.Index || _focusedIndex == point.Index)
-        {
-            return;
-        }
-
-        _hoveredIndex = null;
-        await RefreshPointsAsync();
-    }
-
-    private async Task HandleFocusAsync(WaterfallChartPoint<TItem> point)
-    {
-        _focusedIndex = point.Index;
-        _hoveredIndex = point.Index;
-        await RefreshPointsAsync();
-        await OnPointHoverChanged.InvokeAsync(ToInteraction(HoveredPoint!));
-    }
-
-    private async Task HandleBlurAsync(WaterfallChartPoint<TItem> point)
-    {
-        if (_focusedIndex == point.Index)
-        {
-            _focusedIndex = null;
-        }
-
-        if (_hoveredIndex == point.Index)
-        {
-            _hoveredIndex = null;
-        }
-
-        await RefreshPointsAsync();
-    }
-
-    private async Task HandleSelectAsync(WaterfallChartPoint<TItem> point)
-    {
-        SelectedItem = point.Item;
-        await RefreshPointsAsync();
-        await SelectedItemChanged.InvokeAsync(point.Item);
-        await OnPointClick.InvokeAsync(ToInteraction(point));
-    }
-
-    private async Task HandleKeyDownAsync(KeyboardEventArgs args, WaterfallChartPoint<TItem> point)
-    {
-        if (args.Key is "Enter" or " ")
-        {
-            await HandleSelectAsync(point);
-        }
-    }
-
-    private async Task RefreshPointsAsync()
-        => await InvokeAsync(StateHasChanged);
-
     private string GetPointClasses(WaterfallChartPoint<TItem> point)
     {
         var classes = new List<string> { "waterfall-group" };
-        if (_hoveredIndex == point.Index) classes.Add("is-hovered");
-        if (_focusedIndex == point.Index) classes.Add("is-focused");
+        if (_interaction.IsHovered(point)) classes.Add("is-hovered");
+        if (_interaction.IsFocused(point)) classes.Add("is-focused");
         if (IsSelected(point)) classes.Add("is-selected");
         classes.Add(point.StepType switch
         {

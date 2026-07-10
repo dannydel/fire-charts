@@ -1,9 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using FireCharts.Interaction;
 using FireCharts.Models;
 using FireCharts.Scales;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Web;
 
 namespace FireCharts.Components;
 
@@ -26,9 +26,8 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
     private IReadOnlyList<ScaleTick> _valueAxisTicks = Array.Empty<ScaleTick>();
     private double _computedMaxValue = 100;
     private int? _hoveredCategoryIndex;
-    private int? _hoveredSegmentIndex;
-    private int? _focusedSegmentIndex;
     private PlotArea _plot;
+    private ChartInteraction<ClusteredBarChartSegment<TItem, TSegment>, int> _interaction = default!;
     private string? _hoveredLegendLabel;
 
     [Parameter] public string Title { get; set; } = "Clustered Bar Chart";
@@ -76,8 +75,8 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
     internal IReadOnlyList<ClusteredBarChartSegment<TItem, TSegment>> Segments => _segments;
     internal IReadOnlyList<CategoryState> Categories => _categories;
     internal IReadOnlyList<LegendItem> LegendItems => _legendItems;
-    internal ClusteredBarChartSegment<TItem, TSegment>? HoveredSegment => _hoveredSegmentIndex is int index && index >= 0 && index < _segments.Count ? _segments[index] : null;
-    internal ClusteredBarChartSegment<TItem, TSegment>? FocusedSegment => _focusedSegmentIndex is int index && index >= 0 && index < _segments.Count ? _segments[index] : null;
+    internal ClusteredBarChartSegment<TItem, TSegment>? HoveredSegment => _interaction.Hovered;
+    internal ClusteredBarChartSegment<TItem, TSegment>? FocusedSegment => _interaction.Focused;
     internal bool UsesSharedTooltip => TooltipInteractionMode == BarTooltipInteractionMode.Shared;
     internal int SafeGridLineCount => Math.Max(GridLineCount, 1);
     internal bool HasLegendHover => !string.IsNullOrWhiteSpace(_hoveredLegendLabel);
@@ -120,6 +119,24 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
 
     internal double ComputedMaxValue => _computedMaxValue;
     internal IReadOnlyList<ScaleTick> ValueAxisTicks => _valueAxisTicks;
+
+    protected override void OnInitialized()
+    {
+        _interaction = new ChartInteraction<ClusteredBarChartSegment<TItem, TSegment>, int>(
+            new ChartInteractionOptions<ClusteredBarChartSegment<TItem, TSegment>, int>
+            {
+                KeySelector = FindSegmentIndex,
+                RequestRender = () => InvokeAsync(StateHasChanged),
+                OnActiveChanged = segment => OnSegmentHoverChanged.InvokeAsync(ToInteraction(segment)),
+                OnActivate = async segment =>
+                {
+                    SelectedSegment = segment;
+                    await InvokeAsync(StateHasChanged);
+                    await SelectedSegmentChanged.InvokeAsync(segment);
+                    await OnSegmentClick.InvokeAsync(ToInteraction(segment));
+                }
+            });
+    }
 
     protected override void OnParametersSet()
     {
@@ -247,21 +264,12 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
         _segments = new ReadOnlyCollection<ClusteredBarChartSegment<TItem, TSegment>>(segments);
         _segmentIndexByKey = segmentIndexByKey;
         _legendItems = new ReadOnlyCollection<LegendItem>(legendMap.Values.ToList());
+        _interaction.SetElements(_segments);
 
         if (_hoveredCategoryIndex is int hoveredCategory &&
             !_categories.Any(category => category.Index == hoveredCategory && category.Segments.Count > 0))
         {
             _hoveredCategoryIndex = null;
-        }
-
-        if (_hoveredSegmentIndex is int hovered && (hovered < 0 || hovered >= _segments.Count))
-        {
-            _hoveredSegmentIndex = null;
-        }
-
-        if (_focusedSegmentIndex is int focused && (focused < 0 || focused >= _segments.Count))
-        {
-            _focusedSegmentIndex = null;
         }
 
         if (_hoveredLegendLabel is not null && !_legendItems.Any(item => item.Label == _hoveredLegendLabel))
@@ -360,40 +368,12 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
         return Task.CompletedTask;
     }
 
-    private async Task HandleHoverAsync(ClusteredBarChartSegment<TItem, TSegment> segment)
-    {
-        var index = FindSegmentIndex(segment);
-        if (index < 0 || _hoveredSegmentIndex == index)
-        {
-            return;
-        }
-
-        _hoveredSegmentIndex = index;
-        await RefreshChartAsync();
-        await OnSegmentHoverChanged.InvokeAsync(ToInteraction(HoveredSegment!));
-    }
-
-    private async Task HandleHoverLeaveAsync(ClusteredBarChartSegment<TItem, TSegment> segment)
-    {
-        if (UsesSharedTooltip)
-        {
-            return;
-        }
-
-        var index = FindSegmentIndex(segment);
-        if (index < 0)
-        {
-            return;
-        }
-
-        if (_hoveredSegmentIndex != index || _focusedSegmentIndex == index)
-        {
-            return;
-        }
-
-        _hoveredSegmentIndex = null;
-        await RefreshChartAsync();
-    }
+    /// <summary>
+    /// Individual segment mouse-out is suppressed while the shared tooltip is active: the
+    /// category-level rollup (<see cref="HandleCategoryLeaveAsync"/>) owns clearing hover in that mode.
+    /// </summary>
+    private Task HandleSegmentHoverLeaveAsync(ClusteredBarChartSegment<TItem, TSegment> segment) =>
+        UsesSharedTooltip ? Task.CompletedTask : _interaction.HoverLeaveAsync(segment);
 
     private async Task HandleCategoryEnterAsync(CategoryState category)
     {
@@ -404,11 +384,9 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
 
         _hoveredCategoryIndex = category.Index;
 
-        if (HoveredSegment is not null &&
-            HoveredSegment.CategoryIndex != category.Index &&
-            FocusedSegment?.Key != HoveredSegment.Key)
+        if (HoveredSegment is not null && HoveredSegment.CategoryIndex != category.Index)
         {
-            _hoveredSegmentIndex = null;
+            await _interaction.HoverLeaveKeyAsync(_interaction.HoveredKey!.Value);
         }
 
         await RefreshChartAsync();
@@ -423,64 +401,12 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
 
         _hoveredCategoryIndex = null;
 
-        if (HoveredSegment?.CategoryIndex == category.Index &&
-            FocusedSegment?.Key != HoveredSegment.Key)
+        if (HoveredSegment?.CategoryIndex == category.Index)
         {
-            _hoveredSegmentIndex = null;
+            await _interaction.HoverLeaveKeyAsync(_interaction.HoveredKey!.Value);
         }
 
         await RefreshChartAsync();
-    }
-
-    private async Task HandleFocusAsync(ClusteredBarChartSegment<TItem, TSegment> segment)
-    {
-        var index = FindSegmentIndex(segment);
-        if (index < 0)
-        {
-            return;
-        }
-
-        _focusedSegmentIndex = index;
-        _hoveredSegmentIndex = index;
-        await RefreshChartAsync();
-        await OnSegmentHoverChanged.InvokeAsync(ToInteraction(HoveredSegment!));
-    }
-
-    private async Task HandleBlurAsync(ClusteredBarChartSegment<TItem, TSegment> segment)
-    {
-        var index = FindSegmentIndex(segment);
-        if (index < 0)
-        {
-            return;
-        }
-
-        if (_focusedSegmentIndex == index)
-        {
-            _focusedSegmentIndex = null;
-        }
-
-        if (_hoveredSegmentIndex == index)
-        {
-            _hoveredSegmentIndex = null;
-        }
-
-        await RefreshChartAsync();
-    }
-
-    private async Task HandleSelectAsync(ClusteredBarChartSegment<TItem, TSegment> segment)
-    {
-        SelectedSegment = segment;
-        await RefreshChartAsync();
-        await SelectedSegmentChanged.InvokeAsync(segment);
-        await OnSegmentClick.InvokeAsync(ToInteraction(segment));
-    }
-
-    private async Task HandleKeyDownAsync(KeyboardEventArgs args, ClusteredBarChartSegment<TItem, TSegment> segment)
-    {
-        if (args.Key is "Enter" or " ")
-        {
-            await HandleSelectAsync(segment);
-        }
     }
 
     private async Task HandleLegendEnter(string label)
@@ -636,16 +562,10 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
     private bool IsHovered(ClusteredBarChartSegment<TItem, TSegment> segment) =>
         UsesSharedTooltip
             ? TooltipCategoryIndex == segment.CategoryIndex
-            : _hoveredSegmentIndex is int index &&
-              index >= 0 &&
-              index < _segments.Count &&
-              string.Equals(_segments[index].Key, segment.Key, StringComparison.Ordinal);
+            : _interaction.IsHovered(segment);
 
     private bool IsFocused(ClusteredBarChartSegment<TItem, TSegment> segment) =>
-        _focusedSegmentIndex is int index &&
-        index >= 0 &&
-        index < _segments.Count &&
-        string.Equals(_segments[index].Key, segment.Key, StringComparison.Ordinal);
+        _interaction.IsFocused(segment);
 
     private static string Fmt(double value) => ChartFormat.Fmt(value);
 

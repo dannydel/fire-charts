@@ -1,9 +1,9 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using FireCharts.Interaction;
 using FireCharts.Models;
 using FireCharts.Scales;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Web;
 
 namespace FireCharts.Components;
 
@@ -38,9 +38,7 @@ public partial class FireScatterChart<TItem> : ComponentBase
     private IReadOnlyList<RenderedSeries> _seriesStates = Array.Empty<RenderedSeries>();
     private IReadOnlyList<AxisTick> _xTicks = Array.Empty<AxisTick>();
     private IReadOnlyList<AxisTick> _yTicks = Array.Empty<AxisTick>();
-    private Dictionary<PointKey, ScatterChartPoint<TItem>> _pointsByKey = [];
-    private PointKey? _hoveredPointKey;
-    private PointKey? _focusedPointKey;
+    private ChartInteraction<ScatterChartPoint<TItem>, PointKey> _interaction = default!;
     private int? _legendSeriesIndex;
     private PlotArea _plot;
     private LineChartXValueKind _xAxisKind = LineChartXValueKind.Number;
@@ -85,15 +83,31 @@ public partial class FireScatterChart<TItem> : ComponentBase
     private IReadOnlyList<RenderedSeries> SeriesStates => _seriesStates;
     private IReadOnlyList<AxisTick> XTicks => _xTicks;
     private IReadOnlyList<AxisTick> YTicks => _yTicks;
-    private ScatterChartPoint<TItem>? HoveredPoint => FindPoint(_hoveredPointKey);
+    private ScatterChartPoint<TItem>? HoveredPoint => _interaction.Hovered;
     private int SafeXAxisTickCount => Math.Max(XAxisTickCount, 2);
     private int SafeYAxisTickCount => Math.Max(YAxisTickCount, 2);
     private double SafeMarkerRadius => Math.Clamp(MarkerRadius, 2.5, 12);
     private int? ActiveSeriesIndex => _legendSeriesIndex
-        ?? HoveredPoint?.SeriesIndex
-        ?? FindPoint(_focusedPointKey)?.SeriesIndex
+        ?? _interaction.Active?.SeriesIndex
         ?? SelectedPoint?.SeriesIndex;
     private bool HasSeriesDefinitions => Series is { Count: > 0 };
+
+    protected override void OnInitialized()
+    {
+        _interaction = new ChartInteraction<ScatterChartPoint<TItem>, PointKey>(new ChartInteractionOptions<ScatterChartPoint<TItem>, PointKey>
+        {
+            KeySelector = point => new PointKey(point.SeriesIndex, point.PointIndex),
+            RequestRender = () => InvokeAsync(StateHasChanged),
+            OnActiveChanged = point => OnPointHoverChanged.InvokeAsync(ToInteraction(point)),
+            OnActivate = async point =>
+            {
+                SelectedPoint = point;
+                await InvokeAsync(StateHasChanged);
+                await SelectedPointChanged.InvokeAsync(point);
+                await OnPointClick.InvokeAsync(ToInteraction(point));
+            }
+        });
+    }
 
     protected override void OnParametersSet()
     {
@@ -117,7 +131,7 @@ public partial class FireScatterChart<TItem> : ComponentBase
             _seriesStates = Array.Empty<RenderedSeries>();
             _xTicks = Array.Empty<AxisTick>();
             _yTicks = Array.Empty<AxisTick>();
-            _pointsByKey = [];
+            _interaction.SetElements(Array.Empty<ScatterChartPoint<TItem>>());
             return;
         }
 
@@ -131,7 +145,6 @@ public partial class FireScatterChart<TItem> : ComponentBase
             .ToArray();
 
         var states = new List<RenderedSeries>(rawSeries.Count);
-        var pointsByKey = new Dictionary<PointKey, ScatterChartPoint<TItem>>(allPoints.Count);
 
         foreach (var series in rawSeries)
         {
@@ -158,11 +171,6 @@ public partial class FireScatterChart<TItem> : ComponentBase
                     point.AccessibleLabel);
             }).ToList();
 
-            foreach (var point in points)
-            {
-                pointsByKey[new PointKey(point.SeriesIndex, point.PointIndex)] = point;
-            }
-
             states.Add(new RenderedSeries
             {
                 Index = points[0].SeriesIndex,
@@ -174,8 +182,7 @@ public partial class FireScatterChart<TItem> : ComponentBase
         }
 
         _seriesStates = new ReadOnlyCollection<RenderedSeries>(states);
-        _pointsByKey = pointsByKey;
-        NormalizeInteractionState();
+        _interaction.SetElements(states.SelectMany(series => series.Points).ToList());
     }
 
     private List<InputSeries> BuildInputSeries()
@@ -287,80 +294,6 @@ public partial class FireScatterChart<TItem> : ComponentBase
         return Task.CompletedTask;
     }
 
-    private async Task HandleHoverAsync(ScatterChartPoint<TItem> point)
-    {
-        var key = new PointKey(point.SeriesIndex, point.PointIndex);
-        if (_hoveredPointKey == key)
-        {
-            return;
-        }
-
-        _hoveredPointKey = key;
-        await RefreshPointsAsync();
-
-        if (HoveredPoint is not null)
-        {
-            await OnPointHoverChanged.InvokeAsync(ToInteraction(HoveredPoint));
-        }
-    }
-
-    private async Task HandleHoverLeaveAsync(ScatterChartPoint<TItem> point)
-    {
-        var key = new PointKey(point.SeriesIndex, point.PointIndex);
-        if (_hoveredPointKey != key || _focusedPointKey == key)
-        {
-            return;
-        }
-
-        _hoveredPointKey = null;
-        await RefreshPointsAsync();
-    }
-
-    private async Task HandleFocusAsync(ScatterChartPoint<TItem> point)
-    {
-        var key = new PointKey(point.SeriesIndex, point.PointIndex);
-        _focusedPointKey = key;
-        _hoveredPointKey = key;
-        await RefreshPointsAsync();
-
-        if (HoveredPoint is not null)
-        {
-            await OnPointHoverChanged.InvokeAsync(ToInteraction(HoveredPoint));
-        }
-    }
-
-    private async Task HandleBlurAsync(ScatterChartPoint<TItem> point)
-    {
-        var key = new PointKey(point.SeriesIndex, point.PointIndex);
-        if (_focusedPointKey == key)
-        {
-            _focusedPointKey = null;
-        }
-
-        if (_hoveredPointKey == key)
-        {
-            _hoveredPointKey = null;
-        }
-
-        await RefreshPointsAsync();
-    }
-
-    private async Task HandleSelectAsync(ScatterChartPoint<TItem> point)
-    {
-        SelectedPoint = point;
-        await RefreshPointsAsync();
-        await SelectedPointChanged.InvokeAsync(point);
-        await OnPointClick.InvokeAsync(ToInteraction(point));
-    }
-
-    private async Task HandleKeyDownAsync(KeyboardEventArgs args, ScatterChartPoint<TItem> point)
-    {
-        if (args.Key is "Enter" or " ")
-        {
-            await HandleSelectAsync(point);
-        }
-    }
-
     private void HandleLegendEnter(int seriesIndex)
     {
         _legendSeriesIndex = seriesIndex;
@@ -369,32 +302,6 @@ public partial class FireScatterChart<TItem> : ComponentBase
     private void HandleLegendLeave()
     {
         _legendSeriesIndex = null;
-    }
-
-    private async Task RefreshPointsAsync()
-        => await InvokeAsync(StateHasChanged);
-
-    private ScatterChartPoint<TItem>? FindPoint(PointKey? key)
-    {
-        if (key is null)
-        {
-            return null;
-        }
-
-        return _pointsByKey.GetValueOrDefault(key.Value);
-    }
-
-    private void NormalizeInteractionState()
-    {
-        if (FindPoint(_hoveredPointKey) is null)
-        {
-            _hoveredPointKey = null;
-        }
-
-        if (FindPoint(_focusedPointKey) is null)
-        {
-            _focusedPointKey = null;
-        }
     }
 
     private bool IsSelected(RawPoint point) =>
@@ -509,11 +416,9 @@ public partial class FireScatterChart<TItem> : ComponentBase
         SelectedPoint.SeriesIndex == point.SeriesIndex &&
         SelectedPoint.PointIndex == point.PointIndex;
 
-    private bool IsHovered(ScatterChartPoint<TItem> point) =>
-        _hoveredPointKey == new PointKey(point.SeriesIndex, point.PointIndex);
+    private bool IsHovered(ScatterChartPoint<TItem> point) => _interaction.IsHovered(point);
 
-    private bool IsFocused(ScatterChartPoint<TItem> point) =>
-        _focusedPointKey == new PointKey(point.SeriesIndex, point.PointIndex);
+    private bool IsFocused(ScatterChartPoint<TItem> point) => _interaction.IsFocused(point);
 
     private ScatterChartPointInteraction<TItem> ToInteraction(ScatterChartPoint<TItem> point) =>
         new(point.Item, point.SeriesIndex, point.SeriesName, point.PointIndex, point.Label, point.X, point.Y);

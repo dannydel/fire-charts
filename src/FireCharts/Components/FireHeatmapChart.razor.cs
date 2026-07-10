@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using FireCharts.Interaction;
 using FireCharts.Models;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -25,10 +26,8 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
         string AccessibleLabel);
 
     private HeatmapRenderData<TItem> _renderData = HeatmapRenderData<TItem>.Empty;
-    private Dictionary<CellKey, HeatmapCell<TItem>> _cellsByKey = [];
-    private CellKey? _hoveredCellKey;
-    private CellKey? _focusedCellKey;
     private PlotArea _plot;
+    private ChartInteraction<HeatmapCell<TItem>, CellKey> _interaction = default!;
 
     [Parameter] public string Title { get; set; } = "Heatmap Chart";
     [Parameter] public string Description { get; set; } = "";
@@ -74,7 +73,7 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
     private IReadOnlyList<HeatmapPlaceholderCell> PlaceholderCells => _renderData.PlaceholderCells;
     private IReadOnlyList<HeatmapRowDefinition> Rows => _renderData.Rows;
     private IReadOnlyList<HeatmapColumnDefinition> Columns => _renderData.Columns;
-    private HeatmapCell<TItem>? HoveredCell => FindCell(_hoveredCellKey);
+    private HeatmapCell<TItem>? HoveredCell => _interaction.Hovered;
     private double SafeCellGap => Math.Clamp(CellGap, 0, 12);
     private double SafeCornerRadius => Math.Clamp(CornerRadius, 0, 16);
     private int MatrixCellCount => Rows.Count * Columns.Count;
@@ -113,15 +112,33 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
     private string CanvasInteractionStateJson => JsonSerializer.Serialize(
         new HeatmapCanvasInteractionState(
             ToCanvasKey(GetSelectedCellKey()),
-            ToCanvasKey(_hoveredCellKey),
-            ToCanvasKey(_focusedCellKey)),
+            ToCanvasKey(_interaction.HoveredKey),
+            ToCanvasKey(_interaction.FocusedKey)),
         CanvasSerializerOptions);
     private string CanvasInteractionLayerStyle =>
         $"left: {Fmt(_plot.Left)}px; top: {Fmt(_plot.Top)}px; width: {Fmt(_plot.Width)}px; height: {Fmt(_plot.Height)}px;";
-    private string CanvasAriaLabel => (FindCell(_focusedCellKey) ?? HoveredCell ?? Cells.FirstOrDefault())?.AccessibleLabel ?? Title;
+    private string CanvasAriaLabel => (_interaction.Focused ?? _interaction.Hovered ?? Cells.FirstOrDefault())?.AccessibleLabel ?? Title;
     private string LegendMinLabel => _renderData.MinValue.ToString(ValueFormat, CultureInfo.InvariantCulture);
     private string LegendMaxLabel => _renderData.MaxValue.ToString(ValueFormat, CultureInfo.InvariantCulture);
     private string LegendScaleStyle => $"--legend-low: {LowColor}; --legend-high: {HighColor};";
+
+    protected override void OnInitialized()
+    {
+        _interaction = new ChartInteraction<HeatmapCell<TItem>, CellKey>(new ChartInteractionOptions<HeatmapCell<TItem>, CellKey>
+        {
+            KeySelector = cell => new CellKey(cell.RowIndex, cell.ColumnIndex),
+            RequestRender = () => InvokeAsync(StateHasChanged),
+            OnActiveChanged = cell => OnCellHoverChanged.InvokeAsync(ToInteraction(cell)),
+            OnActivate = async cell =>
+            {
+                SelectedItem = cell.Item;
+                await InvokeAsync(StateHasChanged);
+                await SelectedItemChanged.InvokeAsync(cell.Item);
+                await OnCellClick.InvokeAsync(ToInteraction(cell));
+            },
+            Navigator = (key, direction) => FindAdjacentKey(key, direction)
+        });
+    }
 
     protected override void OnParametersSet()
     {
@@ -144,14 +161,12 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
         if (rawCells.Count == 0)
         {
             _renderData = HeatmapRenderData<TItem>.Empty;
-            _cellsByKey = [];
-            _hoveredCellKey = null;
-            _focusedCellKey = null;
+            _interaction.SetElements(Array.Empty<HeatmapCell<TItem>>());
             return;
         }
 
         _renderData = BuildRenderData(rawCells);
-        NormalizeInteractionState();
+        _interaction.SetElements(_renderData.Cells);
     }
 
     private HeatmapRenderData<TItem> BuildRenderData(IReadOnlyList<RawCell> rawCells)
@@ -169,7 +184,6 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
 
         var placeholderCells = new List<HeatmapPlaceholderCell>(rows.Count * columns.Count);
         var renderedCells = new List<HeatmapCell<TItem>>(rawCells.Count);
-        var renderedCellsByKey = new Dictionary<CellKey, HeatmapCell<TItem>>(rawCells.Count);
         var comparer = EqualityComparer<TItem>.Default;
 
         foreach (var row in rows)
@@ -197,15 +211,12 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
                     rect,
                     fill,
                     comparer.Equals(rawCell.Item, SelectedItem),
-                    _hoveredCellKey == key,
-                    _focusedCellKey == key,
+                    _interaction.HoveredKey == key,
+                    _interaction.FocusedKey == key,
                     rawCell.AccessibleLabel);
                 renderedCells.Add(cell);
-                renderedCellsByKey[key] = cell;
             }
         }
-
-        _cellsByKey = renderedCellsByKey;
 
         return new HeatmapRenderData<TItem>(
             renderedCells.ToArray(),
@@ -358,106 +369,6 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
         return Task.CompletedTask;
     }
 
-    private async Task HandleHoverAsync(HeatmapCell<TItem> cell)
-    {
-        var key = new CellKey(cell.RowIndex, cell.ColumnIndex);
-        if (_hoveredCellKey == key)
-        {
-            return;
-        }
-
-        _hoveredCellKey = key;
-        await RefreshCellsAsync();
-
-        if (HoveredCell is not null)
-        {
-            await OnCellHoverChanged.InvokeAsync(ToInteraction(HoveredCell));
-        }
-    }
-
-    private async Task HandleHoverLeaveAsync(HeatmapCell<TItem> cell)
-    {
-        var key = new CellKey(cell.RowIndex, cell.ColumnIndex);
-        if (_hoveredCellKey != key || _focusedCellKey == key)
-        {
-            return;
-        }
-
-        _hoveredCellKey = null;
-        await RefreshCellsAsync();
-    }
-
-    private async Task HandleFocusAsync(HeatmapCell<TItem> cell)
-    {
-        var key = new CellKey(cell.RowIndex, cell.ColumnIndex);
-        _focusedCellKey = key;
-        _hoveredCellKey = key;
-        await RefreshCellsAsync();
-
-        if (HoveredCell is not null)
-        {
-            await OnCellHoverChanged.InvokeAsync(ToInteraction(HoveredCell));
-        }
-    }
-
-    private async Task HandleBlurAsync(HeatmapCell<TItem> cell)
-    {
-        var key = new CellKey(cell.RowIndex, cell.ColumnIndex);
-        if (_focusedCellKey == key)
-        {
-            _focusedCellKey = null;
-        }
-
-        if (_hoveredCellKey == key)
-        {
-            _hoveredCellKey = null;
-        }
-
-        await RefreshCellsAsync();
-    }
-
-    private async Task HandleSelectAsync(HeatmapCell<TItem> cell)
-    {
-        SelectedItem = cell.Item;
-        await RefreshCellsAsync();
-        await SelectedItemChanged.InvokeAsync(cell.Item);
-        await OnCellClick.InvokeAsync(ToInteraction(cell));
-    }
-
-    private async Task HandleKeyDownAsync(KeyboardEventArgs args, HeatmapCell<TItem> cell)
-    {
-        if (args.Key is "Enter" or " ")
-        {
-            await HandleSelectAsync(cell);
-        }
-    }
-
-    private async Task RefreshCellsAsync()
-        => await InvokeAsync(StateHasChanged);
-
-    private HeatmapCell<TItem>? FindCell(CellKey? key)
-    {
-        if (key is null)
-        {
-            return null;
-        }
-
-        return _cellsByKey.GetValueOrDefault(key.Value);
-    }
-
-    private void NormalizeInteractionState()
-    {
-        if (FindCell(_hoveredCellKey) is null)
-        {
-            _hoveredCellKey = null;
-        }
-
-        if (FindCell(_focusedCellKey) is null)
-        {
-            _focusedCellKey = null;
-        }
-    }
-
     private HeatmapCellInteraction<TItem> ToInteraction(HeatmapCell<TItem> cell) =>
         new(
             cell.Item,
@@ -522,120 +433,55 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
             _ => HeatmapRenderMode.Svg
         };
 
-    private async Task HandleCanvasPointerMoveAsync((int RowIndex, int ColumnIndex) location)
+    private Task HandleCanvasPointerMoveAsync((int RowIndex, int ColumnIndex) location)
     {
-        var cell = FindCell(new CellKey(location.RowIndex, location.ColumnIndex));
-        if (cell is not null)
-        {
-            await HandleHoverAsync(cell);
-        }
+        var key = new CellKey(location.RowIndex, location.ColumnIndex);
+        return _interaction.Resolve(key) is not null
+            ? _interaction.HoverKeyAsync(key)
+            : Task.CompletedTask;
     }
 
-    private async Task HandleCanvasPointerLeaveAsync()
-    {
-        if (_focusedCellKey is not null && _hoveredCellKey == _focusedCellKey)
-        {
-            return;
-        }
-
-        if (_hoveredCellKey is null)
-        {
-            return;
-        }
-
-        _hoveredCellKey = null;
-        await RefreshCellsAsync();
-    }
+    private Task HandleCanvasPointerLeaveAsync() => _interaction.HoverLeaveSurfaceAsync();
 
     private async Task HandleCanvasClickAsync((int RowIndex, int ColumnIndex) location)
     {
         var key = new CellKey(location.RowIndex, location.ColumnIndex);
-        var cell = FindCell(key);
-        if (cell is null)
+        if (_interaction.Resolve(key) is null)
         {
             return;
         }
 
-        _focusedCellKey = key;
-        _hoveredCellKey = key;
-        SelectedItem = cell.Item;
-        await RefreshCellsAsync();
-
-        var activeCell = FindCell(key);
-        if (activeCell is not null)
-        {
-            await OnCellHoverChanged.InvokeAsync(ToInteraction(activeCell));
-        }
-
-        await SelectedItemChanged.InvokeAsync(cell.Item);
-        await OnCellClick.InvokeAsync(ToInteraction(cell));
+        await _interaction.FocusKeyAsync(key);
+        await _interaction.ActivateKeyAsync(key);
     }
 
-    private async Task HandleCanvasFocusAsync()
+    private Task HandleCanvasFocusAsync() => _interaction.FocusEntryAsync(GetSelectedCellKey());
+
+    private Task HandleCanvasBlurAsync() => _interaction.BlurSurfaceAsync();
+
+    private Task HandleCanvasKeyDownAsync(KeyboardEventArgs args) =>
+        _interaction.KeyDownSurfaceAsync(args, GetSelectedCellKey());
+
+    private CellKey FindAdjacentKey(CellKey origin, ChartArrowDirection direction)
     {
-        var targetCell = FindCell(_focusedCellKey) ?? GetSelectedCell() ?? Cells.FirstOrDefault();
-        if (targetCell is null)
+        var (rowDelta, columnDelta) = direction switch
         {
-            return;
-        }
-
-        await HandleFocusAsync(targetCell);
-    }
-
-    private async Task HandleCanvasBlurAsync()
-    {
-        if (_focusedCellKey is null && _hoveredCellKey is null)
-        {
-            return;
-        }
-
-        _focusedCellKey = null;
-        _hoveredCellKey = null;
-        await RefreshCellsAsync();
-    }
-
-    private async Task HandleCanvasKeyDownAsync(KeyboardEventArgs args)
-    {
-        var currentCell = FindCell(_focusedCellKey) ?? GetSelectedCell() ?? Cells.FirstOrDefault();
-        if (currentCell is null)
-        {
-            return;
-        }
-
-        if (args.Key is "Enter" or " ")
-        {
-            await HandleCanvasClickAsync((currentCell.RowIndex, currentCell.ColumnIndex));
-            return;
-        }
-
-        HeatmapCell<TItem>? nextCell = args.Key switch
-        {
-            "ArrowLeft" => FindAdjacentCell(currentCell, 0, -1),
-            "ArrowRight" => FindAdjacentCell(currentCell, 0, 1),
-            "ArrowUp" => FindAdjacentCell(currentCell, -1, 0),
-            "ArrowDown" => FindAdjacentCell(currentCell, 1, 0),
-            _ => null
+            ChartArrowDirection.Left => (0, -1),
+            ChartArrowDirection.Right => (0, 1),
+            ChartArrowDirection.Up => (-1, 0),
+            ChartArrowDirection.Down => (1, 0),
+            _ => (0, 0)
         };
 
-        if (nextCell is null || nextCell.Key == currentCell.Key)
-        {
-            return;
-        }
-
-        await HandleFocusAsync(nextCell);
-    }
-
-    private HeatmapCell<TItem>? FindAdjacentCell(HeatmapCell<TItem> origin, int rowDelta, int columnDelta)
-    {
         var rowIndex = origin.RowIndex + rowDelta;
         var columnIndex = origin.ColumnIndex + columnDelta;
 
         while (rowIndex >= 0 && rowIndex < Rows.Count && columnIndex >= 0 && columnIndex < Columns.Count)
         {
-            var cell = FindCell(new CellKey(rowIndex, columnIndex));
-            if (cell is not null)
+            var candidate = new CellKey(rowIndex, columnIndex);
+            if (_interaction.Resolve(candidate) is not null)
             {
-                return cell;
+                return candidate;
             }
 
             rowIndex += rowDelta;
@@ -657,11 +503,9 @@ public partial class FireHeatmapChart<TItem> : ComponentBase
         return cell is null ? null : new CellKey(cell.RowIndex, cell.ColumnIndex);
     }
 
-    private bool IsHovered(HeatmapCell<TItem> cell) =>
-        _hoveredCellKey == new CellKey(cell.RowIndex, cell.ColumnIndex);
+    private bool IsHovered(HeatmapCell<TItem> cell) => _interaction.IsHovered(cell);
 
-    private bool IsFocused(HeatmapCell<TItem> cell) =>
-        _focusedCellKey == new CellKey(cell.RowIndex, cell.ColumnIndex);
+    private bool IsFocused(HeatmapCell<TItem> cell) => _interaction.IsFocused(cell);
 
     private bool IsSelected(HeatmapCell<TItem> cell) =>
         EqualityComparer<TItem>.Default.Equals(cell.Item, SelectedItem);

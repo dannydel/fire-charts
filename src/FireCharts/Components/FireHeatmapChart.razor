@@ -59,12 +59,12 @@
                            role="button"
                            aria-label="@cell.AccessibleLabel"
                            aria-selected="@IsSelected(cell)"
-                           @onmouseover="() => HandleHoverAsync(cell)"
-                           @onmouseout="() => HandleHoverLeaveAsync(cell)"
-                           @onfocus="() => HandleFocusAsync(cell)"
-                           @onblur="() => HandleBlurAsync(cell)"
-                           @onclick="() => HandleSelectAsync(cell)"
-                           @onkeydown="args => HandleKeyDownAsync(args, cell)">
+                           @onmouseover="() => _interaction.HoverAsync(cell)"
+                           @onmouseout="() => _interaction.HoverLeaveAsync(cell)"
+                           @onfocus="() => _interaction.FocusAsync(cell)"
+                           @onblur="() => _interaction.BlurAsync(cell)"
+                           @onclick="() => _interaction.ActivateAsync(cell)"
+                           @onkeydown="args => _interaction.KeyDownAsync(args, cell)">
                             <rect class="heatmap-cell"
                                   x="@Fmt(cell.Rect.X)"
                                   y="@Fmt(cell.Rect.Y)"

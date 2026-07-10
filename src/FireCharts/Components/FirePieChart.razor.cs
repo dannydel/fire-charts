@@ -1,8 +1,8 @@
+using FireCharts.Interaction;
 using FireCharts.Models;
 using Microsoft.AspNetCore.Components;
 using System.Globalization;
 using System.Collections.ObjectModel;
-using Microsoft.AspNetCore.Components.Web;
 
 namespace FireCharts.Components;
 
@@ -19,9 +19,8 @@ public partial class FirePieChart<TItem> : ComponentBase
     ];
 
     private IReadOnlyList<PieChartPoint<TItem>> _points = Array.Empty<PieChartPoint<TItem>>();
-    private int? _hoveredIndex;
-    private int? _focusedIndex;
     private PlotArea _plot;
+    private ChartInteraction<PieChartPoint<TItem>, int> _interaction = default!;
 
     [Parameter] public string Title { get; set; } = "Pie Chart";
     [Parameter] public string Description { get; set; } = "";
@@ -58,9 +57,9 @@ public partial class FirePieChart<TItem> : ComponentBase
     private ChartPadding Padding => ChartPadding.Zero;
 
     internal IReadOnlyList<PieChartPoint<TItem>> Points => _points;
-    internal PieChartPoint<TItem>? HoveredPoint => _hoveredIndex is int index && index >= 0 && index < _points.Count ? _points[index] : null;
     internal SvgPoint Center => _plot.Center;
     internal double Radius => _plot.Radius(26, 40);
+    internal PieChartPoint<TItem>? HoveredPoint => _interaction.Hovered;
     internal double InnerRadius => Radius * Math.Clamp(InnerRadiusRatio, 0, 0.75);
     internal bool HasInnerHole => InnerRadius > 0;
     internal double CenterLabelOuterRadius => Math.Max(InnerRadius > 0 ? InnerRadius - 8 : Radius * 0.34, 34);
@@ -75,6 +74,28 @@ public partial class FirePieChart<TItem> : ComponentBase
             .Select(ChartValues.Sanitize)
             .DefaultIfEmpty(0)
             .Sum();
+
+    protected override void OnInitialized()
+    {
+        _interaction = new ChartInteraction<PieChartPoint<TItem>, int>(new ChartInteractionOptions<PieChartPoint<TItem>, int>
+        {
+            KeySelector = point => point.Index,
+            RequestRender = async () =>
+            {
+                RebuildPoints();
+                await InvokeAsync(StateHasChanged);
+            },
+            OnActiveChanged = point => OnPointHoverChanged.InvokeAsync(ToInteraction(point)),
+            OnActivate = async point =>
+            {
+                SelectedItem = point.Item;
+                RebuildPoints();
+                await InvokeAsync(StateHasChanged);
+                await SelectedItemChanged.InvokeAsync(point.Item);
+                await OnPointClick.InvokeAsync(ToInteraction(point));
+            }
+        });
+    }
 
     protected override void OnParametersSet()
     {
@@ -110,7 +131,7 @@ public partial class FirePieChart<TItem> : ComponentBase
             var endAngle = startAngle + sliceAngle;
             var label = LabelSelectorOrThrow(item);
             var isSelected = comparer.Equals(item, selectedItem);
-            var isActive = isSelected || _hoveredIndex == i || _focusedIndex == i;
+            var isActive = isSelected || _interaction.HoveredKey == i || _interaction.FocusedKey == i;
             var offset = GetOffset(startAngle, endAngle, isActive ? ActiveOffset : 0);
             var path = BuildSlicePath(startAngle, endAngle);
             var percentage = value / totalValue;
@@ -136,23 +157,14 @@ public partial class FirePieChart<TItem> : ComponentBase
                 useDarkLabelText,
                 $"{label}: {value.ToString(ValueFormat, CultureInfo.InvariantCulture)} ({percentage.ToString("P0", CultureInfo.InvariantCulture)})",
                 isSelected,
-                _hoveredIndex == i,
-                _focusedIndex == i));
+                _interaction.HoveredKey == i,
+                _interaction.FocusedKey == i));
 
             startAngle = endAngle;
         }
 
         _points = new ReadOnlyCollection<PieChartPoint<TItem>>(points);
-
-        if (_hoveredIndex is int hovered && _points.All(point => point.Index != hovered))
-        {
-            _hoveredIndex = null;
-        }
-
-        if (_focusedIndex is int focused && _points.All(point => point.Index != focused))
-        {
-            _focusedIndex = null;
-        }
+        _interaction.SetElements(_points);
     }
 
     private Task OnPlotAreaChanged(PlotArea plot)
@@ -196,73 +208,6 @@ public partial class FirePieChart<TItem> : ComponentBase
 
         var midAngle = (startAngle + endAngle) / 2;
         return new SvgPoint(Math.Cos(midAngle) * distance, Math.Sin(midAngle) * distance);
-    }
-
-    private async Task HandleHoverAsync(PieChartPoint<TItem> point)
-    {
-        if (_hoveredIndex == point.Index)
-        {
-            return;
-        }
-
-        _hoveredIndex = point.Index;
-        RebuildPoints();
-        await InvokeAsync(StateHasChanged);
-        await OnPointHoverChanged.InvokeAsync(ToInteraction(HoveredPoint!));
-    }
-
-    private async Task HandleHoverLeaveAsync(PieChartPoint<TItem> point)
-    {
-        if (_hoveredIndex != point.Index || _focusedIndex == point.Index)
-        {
-            return;
-        }
-
-        _hoveredIndex = null;
-        RebuildPoints();
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private async Task HandleFocusAsync(PieChartPoint<TItem> point)
-    {
-        _focusedIndex = point.Index;
-        _hoveredIndex = point.Index;
-        RebuildPoints();
-        await InvokeAsync(StateHasChanged);
-        await OnPointHoverChanged.InvokeAsync(ToInteraction(HoveredPoint!));
-    }
-
-    private async Task HandleBlurAsync(PieChartPoint<TItem> point)
-    {
-        if (_focusedIndex == point.Index)
-        {
-            _focusedIndex = null;
-        }
-
-        if (_hoveredIndex == point.Index)
-        {
-            _hoveredIndex = null;
-        }
-
-        RebuildPoints();
-        await InvokeAsync(StateHasChanged);
-    }
-
-    private async Task HandleSelectAsync(PieChartPoint<TItem> point)
-    {
-        SelectedItem = point.Item;
-        RebuildPoints();
-        await InvokeAsync(StateHasChanged);
-        await SelectedItemChanged.InvokeAsync(point.Item);
-        await OnPointClick.InvokeAsync(ToInteraction(point));
-    }
-
-    private async Task HandleKeyDownAsync(KeyboardEventArgs args, PieChartPoint<TItem> point)
-    {
-        if (args.Key is "Enter" or " ")
-        {
-            await HandleSelectAsync(point);
-        }
     }
 
     private string GetTooltipStyle(PieChartPoint<TItem> point) =>

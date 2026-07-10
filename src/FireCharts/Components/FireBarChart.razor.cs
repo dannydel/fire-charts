@@ -1,7 +1,7 @@
+using FireCharts.Interaction;
 using FireCharts.Models;
 using FireCharts.Scales;
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Web;
 using System.Collections.ObjectModel;
 using System.Globalization;
 
@@ -11,9 +11,8 @@ public partial class FireBarChart<TItem> : ComponentBase
 {
     private IReadOnlyList<BarChartPoint<TItem>> _points = Array.Empty<BarChartPoint<TItem>>();
     private IReadOnlyList<ScaleTick> _valueAxisTicks = Array.Empty<ScaleTick>();
-    private int? _hoveredIndex;
-    private int? _focusedIndex;
     private PlotArea _plot;
+    private ChartInteraction<BarChartPoint<TItem>, int> _interaction = default!;
     private double _computedMaxValue = 100;
 
     [Parameter] public string Title { get; set; } = "Bar Chart";
@@ -56,12 +55,29 @@ public partial class FireBarChart<TItem> : ComponentBase
         Left: ShowAxisLabels ? (Horizontal ? 90 : 50) : 10);
 
     internal IReadOnlyList<BarChartPoint<TItem>> Points => _points;
-    internal BarChartPoint<TItem>? HoveredPoint => _hoveredIndex is int index && index >= 0 && index < _points.Count ? _points[index] : null;
+    internal BarChartPoint<TItem>? HoveredPoint => _interaction.Hovered;
     internal int SafeGridLineCount => Math.Max(GridLineCount, 1);
     internal double SafeBarSpacing => Math.Clamp(BarSpacing, 0, 0.9);
 
     internal double ComputedMaxValue => _computedMaxValue;
     internal IReadOnlyList<ScaleTick> ValueAxisTicks => _valueAxisTicks;
+
+    protected override void OnInitialized()
+    {
+        _interaction = new ChartInteraction<BarChartPoint<TItem>, int>(new ChartInteractionOptions<BarChartPoint<TItem>, int>
+        {
+            KeySelector = point => point.Index,
+            RequestRender = () => InvokeAsync(StateHasChanged),
+            OnActiveChanged = point => OnPointHoverChanged.InvokeAsync(ToInteraction(point)),
+            OnActivate = async point =>
+            {
+                SelectedItem = point.Item;
+                await InvokeAsync(StateHasChanged);
+                await SelectedItemChanged.InvokeAsync(point.Item);
+                await OnPointClick.InvokeAsync(ToInteraction(point));
+            }
+        });
+    }
 
     protected override void OnParametersSet()
     {
@@ -89,15 +105,7 @@ public partial class FireBarChart<TItem> : ComponentBase
             .Select((item, index) => CreatePoint(item, index, comparer.Equals(item, selectedItem), computedMaxValue))
             .ToList());
 
-        if (_hoveredIndex is int hovered && hovered >= _points.Count)
-        {
-            _hoveredIndex = null;
-        }
-
-        if (_focusedIndex is int focused && focused >= _points.Count)
-        {
-            _focusedIndex = null;
-        }
+        _interaction.SetElements(_points);
     }
 
     private Task OnPlotAreaChanged(PlotArea plot)
@@ -124,8 +132,8 @@ public partial class FireBarChart<TItem> : ComponentBase
             rect,
             tooltipText ?? $"{label}: {value.ToString(ValueFormat, CultureInfo.InvariantCulture)}",
             isSelected,
-            _hoveredIndex == index,
-            _focusedIndex == index);
+            _interaction.HoveredKey == index,
+            _interaction.FocusedKey == index);
     }
 
     private SvgRect GetBarRect(int index, TItem item, double computedMaxValue)
@@ -157,68 +165,6 @@ public partial class FireBarChart<TItem> : ComponentBase
         return new SvgRect(x, barY, barWidthVertical, barHeightVertical);
     }
 
-    private async Task HandleHoverAsync(BarChartPoint<TItem> point)
-    {
-        if (_hoveredIndex == point.Index)
-        {
-            return;
-        }
-
-        _hoveredIndex = point.Index;
-        await RefreshPointsAsync();
-        await OnPointHoverChanged.InvokeAsync(ToInteraction(HoveredPoint!));
-    }
-
-    private async Task HandleHoverLeaveAsync(BarChartPoint<TItem> point)
-    {
-        if (_hoveredIndex != point.Index || _focusedIndex == point.Index)
-        {
-            return;
-        }
-
-        _hoveredIndex = null;
-        await RefreshPointsAsync();
-    }
-
-    private async Task HandleFocusAsync(BarChartPoint<TItem> point)
-    {
-        _focusedIndex = point.Index;
-        _hoveredIndex = point.Index;
-        await RefreshPointsAsync();
-        await OnPointHoverChanged.InvokeAsync(ToInteraction(HoveredPoint!));
-    }
-
-    private async Task HandleBlurAsync(BarChartPoint<TItem> point)
-    {
-        if (_focusedIndex == point.Index)
-        {
-            _focusedIndex = null;
-        }
-
-        if (_hoveredIndex == point.Index)
-        {
-            _hoveredIndex = null;
-        }
-
-        await RefreshPointsAsync();
-    }
-
-    private async Task HandleSelectAsync(BarChartPoint<TItem> point)
-    {
-        SelectedItem = point.Item;
-        await RefreshPointsAsync();
-        await SelectedItemChanged.InvokeAsync(point.Item);
-        await OnPointClick.InvokeAsync(ToInteraction(point));
-    }
-
-    private async Task HandleKeyDownAsync(KeyboardEventArgs args, BarChartPoint<TItem> point)
-    {
-        if (args.Key is "Enter" or " ")
-        {
-            await HandleSelectAsync(point);
-        }
-    }
-
     private SvgPoint GetTooltipAnchor(BarChartPoint<TItem> point) =>
         new(point.Rect.X + (point.Rect.Width / 2), Math.Max(point.Rect.Y - 12, 8));
 
@@ -231,13 +177,11 @@ public partial class FireBarChart<TItem> : ComponentBase
     private string GetPointClasses(BarChartPoint<TItem> point)
     {
         var classes = new List<string> { "bar-group" };
-        if (_hoveredIndex == point.Index) classes.Add("is-hovered");
-        if (_focusedIndex == point.Index) classes.Add("is-focused");
+        if (_interaction.IsHovered(point)) classes.Add("is-hovered");
+        if (_interaction.IsFocused(point)) classes.Add("is-focused");
         if (point.IsSelected || IsSelected(point)) classes.Add("is-selected");
         return string.Join(" ", classes);
     }
-
-    private Task RefreshPointsAsync() => InvokeAsync(StateHasChanged);
 
     private ChartPointInteraction<TItem> ToInteraction(BarChartPoint<TItem> point) =>
         new(point.Item, point.Index, point.Label, point.Value);
