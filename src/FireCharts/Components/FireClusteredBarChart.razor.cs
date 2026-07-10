@@ -26,8 +26,7 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
     private int? _hoveredCategoryIndex;
     private int? _hoveredSegmentIndex;
     private int? _focusedSegmentIndex;
-    private double? _renderWidth;
-    private double? _renderHeight;
+    private PlotArea _plot;
     private string? _hoveredLegendLabel;
 
     [Parameter] public string Title { get; set; } = "Clustered Bar Chart";
@@ -66,10 +65,11 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
     [Parameter] public ChartLegendPlacement LegendPlacement { get; set; } = ChartLegendPlacement.Bottom;
     [Parameter] public BarTooltipInteractionMode TooltipInteractionMode { get; set; } = BarTooltipInteractionMode.Shared;
 
-    private double PaddingTop => 10;
-    private double PaddingRight => 10;
-    private double PaddingBottom => ShowAxisLabels ? 40 : 10;
-    private double PaddingLeft => ShowAxisLabels ? (Horizontal ? 90 : 50) : 10;
+    private ChartPadding Padding => new(
+        Top: 10,
+        Right: 10,
+        Bottom: ShowAxisLabels ? 40 : 10,
+        Left: ShowAxisLabels ? (Horizontal ? 90 : 50) : 10);
 
     internal IReadOnlyList<ClusteredBarChartSegment<TItem, TSegment>> Segments => _segments;
     internal IReadOnlyList<CategoryState> Categories => _categories;
@@ -77,14 +77,6 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
     internal ClusteredBarChartSegment<TItem, TSegment>? HoveredSegment => _hoveredSegmentIndex is int index && index >= 0 && index < _segments.Count ? _segments[index] : null;
     internal ClusteredBarChartSegment<TItem, TSegment>? FocusedSegment => _focusedSegmentIndex is int index && index >= 0 && index < _segments.Count ? _segments[index] : null;
     internal bool UsesSharedTooltip => TooltipInteractionMode == BarTooltipInteractionMode.Shared;
-    internal double SafeWidth => Math.Max(_renderWidth ?? Width, 1);
-    internal double SafeHeight => Math.Max(_renderHeight ?? Height, 1);
-    internal double ChartAreaLeft => PaddingLeft;
-    internal double ChartAreaTop => PaddingTop;
-    internal double ChartAreaRight => SafeWidth - PaddingRight;
-    internal double ChartAreaBottom => SafeHeight - PaddingBottom;
-    internal double ChartAreaWidth => Math.Max(ChartAreaRight - ChartAreaLeft, 1);
-    internal double ChartAreaHeight => Math.Max(ChartAreaBottom - ChartAreaTop, 1);
     internal int SafeGridLineCount => Math.Max(GridLineCount, 1);
     internal bool HasLegendHover => !string.IsNullOrWhiteSpace(_hoveredLegendLabel);
     internal bool ShouldRenderLegendBeforeChart => LegendPlacement is ChartLegendPlacement.Top or ChartLegendPlacement.Left or ChartLegendPlacement.Start;
@@ -119,14 +111,7 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
             : CreateSharedTooltipContext(TooltipCategory);
     internal ClusteredBarChartContext<TItem, TSegment> ChartContext =>
         new(
-            SafeWidth,
-            SafeHeight,
-            ChartAreaLeft,
-            ChartAreaTop,
-            ChartAreaRight,
-            ChartAreaBottom,
-            ChartAreaWidth,
-            ChartAreaHeight,
+            _plot,
             Horizontal,
             ComputedMaxValue,
             Segments);
@@ -142,8 +127,7 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
 
         Width = Math.Max(Width, 1);
         Height = Math.Max(Height, 1);
-        _renderWidth ??= Width;
-        _renderHeight ??= Height;
+        _plot = PlotArea.FromInset(Width, Height, Padding);
         RebuildChartState();
     }
 
@@ -197,8 +181,8 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
                     clusterRect,
                     hoverRect,
                     Horizontal
-                        ? new SvgPoint(ChartAreaLeft - 8, clusterRect.Y + clusterRect.Height / 2)
-                        : new SvgPoint(clusterRect.X + clusterRect.Width / 2, ChartAreaBottom + 20),
+                        ? new SvgPoint(_plot.Left - 8, clusterRect.Y + clusterRect.Height / 2)
+                        : new SvgPoint(clusterRect.X + clusterRect.Width / 2, _plot.Bottom + 20),
                     new ReadOnlyCollection<ClusteredBarChartSegment<TItem, TSegment>>(categorySegments)));
                 continue;
             }
@@ -249,8 +233,8 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
                 clusterRect,
                 hoverRect,
                 Horizontal
-                    ? new SvgPoint(ChartAreaLeft - 8, clusterRect.Y + clusterRect.Height / 2)
-                    : new SvgPoint(clusterRect.X + clusterRect.Width / 2, ChartAreaBottom + 20),
+                    ? new SvgPoint(_plot.Left - 8, clusterRect.Y + clusterRect.Height / 2)
+                    : new SvgPoint(clusterRect.X + clusterRect.Width / 2, _plot.Bottom + 20),
                 new ReadOnlyCollection<ClusteredBarChartSegment<TItem, TSegment>>(categorySegments)));
         }
 
@@ -290,12 +274,12 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
 
         if (Horizontal)
         {
-            var step = ChartAreaHeight / itemCount;
-            return new SvgRect(ChartAreaLeft, ChartAreaTop + categoryIndex * step, ChartAreaWidth, step);
+            var step = _plot.Height / itemCount;
+            return new SvgRect(_plot.Left, _plot.Top + categoryIndex * step, _plot.Width, step);
         }
 
-        var widthStep = ChartAreaWidth / itemCount;
-        return new SvgRect(ChartAreaLeft + categoryIndex * widthStep, ChartAreaTop, widthStep, ChartAreaHeight);
+        var widthStep = _plot.Width / itemCount;
+        return new SvgRect(_plot.Left + categoryIndex * widthStep, _plot.Top, widthStep, _plot.Height);
     }
 
     private SvgRect GetClusterBounds(int categoryIndex, int itemCount, double safeBarWidthRatio, double safeGroupSpacing)
@@ -307,16 +291,16 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
 
         if (Horizontal)
         {
-            var step = ChartAreaHeight / itemCount;
+            var step = _plot.Height / itemCount;
             var clusterHeight = Math.Max(step * safeBarWidthRatio * (1 - safeGroupSpacing), 1);
-            var y = ChartAreaTop + categoryIndex * step + (step - clusterHeight) / 2;
-            return new SvgRect(ChartAreaLeft, y, ChartAreaWidth, clusterHeight);
+            var y = _plot.Top + categoryIndex * step + (step - clusterHeight) / 2;
+            return new SvgRect(_plot.Left, y, _plot.Width, clusterHeight);
         }
 
-        var widthStep = ChartAreaWidth / itemCount;
+        var widthStep = _plot.Width / itemCount;
         var clusterWidth = Math.Max(widthStep * safeBarWidthRatio * (1 - safeGroupSpacing), 1);
-        var x = ChartAreaLeft + categoryIndex * widthStep + (widthStep - clusterWidth) / 2;
-        return new SvgRect(x, ChartAreaTop, clusterWidth, ChartAreaHeight);
+        var x = _plot.Left + categoryIndex * widthStep + (widthStep - clusterWidth) / 2;
+        return new SvgRect(x, _plot.Top, clusterWidth, _plot.Height);
     }
 
     private static double GetSeriesSpacing(SvgRect clusterRect, int segmentCount, double safeSeriesSpacing, bool horizontal)
@@ -353,29 +337,22 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
 
         if (Horizontal)
         {
-            var width = Math.Max(scale * ChartAreaWidth, 0);
+            var width = Math.Max(scale * _plot.Width, 0);
             var segmentY = clusterRect.Y + offset;
-            return new SvgRect(ChartAreaLeft, segmentY, width, segmentThickness);
+            return new SvgRect(_plot.Left, segmentY, width, segmentThickness);
         }
 
-        var height = Math.Max(scale * ChartAreaHeight, 0);
+        var height = Math.Max(scale * _plot.Height, 0);
         var x = clusterRect.X + offset;
-        var segmentTop = ChartAreaBottom - height;
+        var segmentTop = _plot.Bottom - height;
         return new SvgRect(x, segmentTop, segmentThickness, height);
     }
 
-    private void UpdateSurfaceSize(ChartSurfaceContext surface)
+    private Task OnPlotAreaChanged(PlotArea plot)
     {
-        var widthChanged = Math.Abs((_renderWidth ?? 0) - surface.Width) > 0.5;
-        var heightChanged = Math.Abs((_renderHeight ?? 0) - surface.Height) > 0.5;
-        if (!widthChanged && !heightChanged)
-        {
-            return;
-        }
-
-        _renderWidth = surface.Width;
-        _renderHeight = surface.Height;
+        _plot = plot;
         RebuildChartState();
+        return Task.CompletedTask;
     }
 
     private async Task HandleHoverAsync(ClusteredBarChartSegment<TItem, TSegment> segment)
@@ -595,7 +572,7 @@ public partial class FireClusteredBarChart<TItem, TSegment> : ComponentBase
         {
             var right = category.Segments.Max(segment => segment.Rect.X + segment.Rect.Width);
             var centerY = category.HoverRect.Y + category.HoverRect.Height / 2;
-            return new SvgPoint(Math.Min(right + 12, ChartAreaRight - 8), centerY);
+            return new SvgPoint(Math.Min(right + 12, _plot.Right - 8), centerY);
         }
 
         var left = category.HoverRect.X + category.HoverRect.Width / 2;

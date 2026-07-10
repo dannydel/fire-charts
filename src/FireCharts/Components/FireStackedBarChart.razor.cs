@@ -26,8 +26,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
     private int? _hoveredBarIndex;
     private int? _hoveredSegmentIndex;
     private int? _focusedSegmentIndex;
-    private double? _renderWidth;
-    private double? _renderHeight;
+    private PlotArea _plot;
     private string? _hoveredLegendLabel;
 
     [Parameter] public string Title { get; set; } = "Stacked Bar Chart";
@@ -64,24 +63,17 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
     [Parameter] public ChartLegendPlacement LegendPlacement { get; set; } = ChartLegendPlacement.Bottom;
     [Parameter] public BarTooltipInteractionMode TooltipInteractionMode { get; set; } = BarTooltipInteractionMode.Shared;
 
-    private double PaddingTop => 10;
-    private double PaddingRight => 10;
-    private double PaddingBottom => ShowAxisLabels ? 40 : 10;
-    private double PaddingLeft => ShowAxisLabels ? (Horizontal ? 90 : 50) : 10;
+    private ChartPadding Padding => new(
+        Top: 10,
+        Right: 10,
+        Bottom: ShowAxisLabels ? 40 : 10,
+        Left: ShowAxisLabels ? (Horizontal ? 90 : 50) : 10);
 
     internal IReadOnlyList<StackedBarChartSegment<TItem, TSegment>> Segments => _segments;
     internal IReadOnlyList<BarState> Bars => _bars;
     internal IReadOnlyList<LegendItem> LegendItems => _legendItems;
     internal StackedBarChartSegment<TItem, TSegment>? HoveredSegment => _hoveredSegmentIndex is int index && index >= 0 && index < _segments.Count ? _segments[index] : null;
     internal bool UsesSharedTooltip => TooltipInteractionMode == BarTooltipInteractionMode.Shared;
-    internal double SafeWidth => Math.Max(_renderWidth ?? Width, 1);
-    internal double SafeHeight => Math.Max(_renderHeight ?? Height, 1);
-    internal double ChartAreaLeft => PaddingLeft;
-    internal double ChartAreaTop => PaddingTop;
-    internal double ChartAreaRight => SafeWidth - PaddingRight;
-    internal double ChartAreaBottom => SafeHeight - PaddingBottom;
-    internal double ChartAreaWidth => Math.Max(ChartAreaRight - ChartAreaLeft, 1);
-    internal double ChartAreaHeight => Math.Max(ChartAreaBottom - ChartAreaTop, 1);
     internal int SafeGridLineCount => Math.Max(GridLineCount, 1);
     internal bool HasLegendHover => !string.IsNullOrWhiteSpace(_hoveredLegendLabel);
     internal bool ShouldRenderLegendBeforeChart => LegendPlacement is ChartLegendPlacement.Top or ChartLegendPlacement.Left or ChartLegendPlacement.Start;
@@ -117,14 +109,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
             : CreateSharedTooltipContext(TooltipBar);
     internal StackedBarChartContext<TItem, TSegment> ChartContext =>
         new(
-            SafeWidth,
-            SafeHeight,
-            ChartAreaLeft,
-            ChartAreaTop,
-            ChartAreaRight,
-            ChartAreaBottom,
-            ChartAreaWidth,
-            ChartAreaHeight,
+            _plot,
             Horizontal,
             ComputedMaxValue,
             Segments);
@@ -140,8 +125,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 
         Width = Math.Max(Width, 1);
         Height = Math.Max(Height, 1);
-        _renderWidth ??= Width;
-        _renderHeight ??= Height;
+        _plot = PlotArea.FromInset(Width, Height, Padding);
         RebuildChartState();
     }
 
@@ -232,8 +216,8 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
                 barRect,
                 hoverRect,
                 Horizontal
-                    ? new SvgPoint(ChartAreaLeft - 8, barRect.Y + barRect.Height / 2)
-                    : new SvgPoint(barRect.X + barRect.Width / 2, ChartAreaBottom + 20),
+                    ? new SvgPoint(_plot.Left - 8, barRect.Y + barRect.Height / 2)
+                    : new SvgPoint(barRect.X + barRect.Width / 2, _plot.Bottom + 20),
                 new ReadOnlyCollection<StackedBarChartSegment<TItem, TSegment>>(barSegments)));
         }
 
@@ -272,12 +256,12 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 
         if (Horizontal)
         {
-            var step = ChartAreaHeight / itemCount;
-            return new SvgRect(ChartAreaLeft, ChartAreaTop + barIndex * step, ChartAreaWidth, step);
+            var step = _plot.Height / itemCount;
+            return new SvgRect(_plot.Left, _plot.Top + barIndex * step, _plot.Width, step);
         }
 
-        var widthStep = ChartAreaWidth / itemCount;
-        return new SvgRect(ChartAreaLeft + barIndex * widthStep, ChartAreaTop, widthStep, ChartAreaHeight);
+        var widthStep = _plot.Width / itemCount;
+        return new SvgRect(_plot.Left + barIndex * widthStep, _plot.Top, widthStep, _plot.Height);
     }
 
     private SvgRect GetBarBounds(int barIndex, int itemCount, double safeBarWidthRatio)
@@ -289,16 +273,16 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 
         if (Horizontal)
         {
-            var step = ChartAreaHeight / itemCount;
+            var step = _plot.Height / itemCount;
             var barHeight = Math.Max(step * safeBarWidthRatio, 1);
-            var y = ChartAreaTop + barIndex * step + (step - barHeight) / 2;
-            return new SvgRect(ChartAreaLeft, y, ChartAreaWidth, barHeight);
+            var y = _plot.Top + barIndex * step + (step - barHeight) / 2;
+            return new SvgRect(_plot.Left, y, _plot.Width, barHeight);
         }
 
-        var widthStep = ChartAreaWidth / itemCount;
+        var widthStep = _plot.Width / itemCount;
         var barWidth = Math.Max(widthStep * safeBarWidthRatio, 1);
-        var x = ChartAreaLeft + barIndex * widthStep + (widthStep - barWidth) / 2;
-        return new SvgRect(x, ChartAreaTop, barWidth, ChartAreaHeight);
+        var x = _plot.Left + barIndex * widthStep + (widthStep - barWidth) / 2;
+        return new SvgRect(x, _plot.Top, barWidth, _plot.Height);
     }
 
     private SvgRect GetSegmentRect(SvgRect barRect, double runningOffset, double value, double maxValue)
@@ -310,29 +294,22 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
 
         if (Horizontal)
         {
-            var width = Math.Max(scale * ChartAreaWidth, 0);
-            var x = ChartAreaLeft + offsetScale * ChartAreaWidth;
+            var width = Math.Max(scale * _plot.Width, 0);
+            var x = _plot.Left + offsetScale * _plot.Width;
             return new SvgRect(x, barRect.Y, width, barRect.Height);
         }
 
-        var height = Math.Max(scale * ChartAreaHeight, 0);
-        var topOffset = offsetScale * ChartAreaHeight;
-        var y = ChartAreaBottom - topOffset - height;
+        var height = Math.Max(scale * _plot.Height, 0);
+        var topOffset = offsetScale * _plot.Height;
+        var y = _plot.Bottom - topOffset - height;
         return new SvgRect(barRect.X, y, barRect.Width, height);
     }
 
-    private void UpdateSurfaceSize(ChartSurfaceContext surface)
+    private Task OnPlotAreaChanged(PlotArea plot)
     {
-        var widthChanged = Math.Abs((_renderWidth ?? 0) - surface.Width) > 0.5;
-        var heightChanged = Math.Abs((_renderHeight ?? 0) - surface.Height) > 0.5;
-        if (!widthChanged && !heightChanged)
-        {
-            return;
-        }
-
-        _renderWidth = surface.Width;
-        _renderHeight = surface.Height;
+        _plot = plot;
         RebuildChartState();
+        return Task.CompletedTask;
     }
 
     private async Task HandleHoverAsync(StackedBarChartSegment<TItem, TSegment> segment)
@@ -567,7 +544,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
         {
             var right = bar.Segments.Max(segment => segment.Rect.X + segment.Rect.Width);
             var centerY = bar.HoverRect.Y + bar.HoverRect.Height / 2;
-            return new SvgPoint(Math.Min(right + 12, ChartAreaRight - 8), centerY);
+            return new SvgPoint(Math.Min(right + 12, _plot.Right - 8), centerY);
         }
 
         if (ConstrainTooltipToChartBounds)
@@ -581,7 +558,7 @@ public partial class FireStackedBarChart<TItem, TSegment> : ComponentBase
             var right = bar.HoverRect.X + bar.HoverRect.Width;
             var cornerTop = bar.Segments.Min(segment => segment.Rect.Y);
             return new SvgPoint(
-                Math.Min(right, ChartAreaRight - 8),
+                Math.Min(right, _plot.Right - 8),
                 Math.Max(cornerTop + 12, 8));
         }
 

@@ -17,12 +17,10 @@
                   Height="@Height"
                   Responsive="@Responsive"
                   HostCssClass="fire-clustered-bar-chart-host"
-                  SvgCssClass="fire-clustered-bar-chart">
-        <ChildContent Context="surface">
-            @{
-                UpdateSurfaceSize(surface);
-            }
-
+                  SvgCssClass="fire-clustered-bar-chart"
+                  Padding="@Padding"
+                  OnPlotAreaChanged="OnPlotAreaChanged">
+        <ChildContent>
             @if (Segments.Count == 0)
             {
                 @if (EmptyStateTemplate is not null)
@@ -31,8 +29,8 @@
                 }
                 else
                 {
-                    <SvgText X="@(surface.Width / 2)"
-                             Y="@(surface.Height / 2)"
+                    <SvgText X="@(_plot.SurfaceWidth / 2)"
+                             Y="@(_plot.SurfaceHeight / 2)"
                              TextAnchor="middle"
                              CssClass="empty-state"
                              Content="No data" />
@@ -49,19 +47,19 @@
 
                             if (Horizontal)
                             {
-                                var x = ChartAreaLeft + fraction * ChartAreaWidth;
+                                var x = _plot.Left + fraction * _plot.Width;
                                 <line x1="@Fmt(x)"
-                                      y1="@Fmt(ChartAreaTop)"
+                                      y1="@Fmt(_plot.Top)"
                                       x2="@Fmt(x)"
-                                      y2="@Fmt(ChartAreaBottom)"
+                                      y2="@Fmt(_plot.Bottom)"
                                       class="grid-line" />
                             }
                             else
                             {
-                                var y = ChartAreaBottom - fraction * ChartAreaHeight;
-                                <line x1="@Fmt(ChartAreaLeft)"
+                                var y = _plot.Bottom - fraction * _plot.Height;
+                                <line x1="@Fmt(_plot.Left)"
                                       y1="@Fmt(y)"
-                                      x2="@Fmt(ChartAreaRight)"
+                                      x2="@Fmt(_plot.Right)"
                                       y2="@Fmt(y)"
                                       class="grid-line" />
                             }
@@ -70,11 +68,11 @@
                 }
 
                 <g class="axes">
-                    <line x1="@Fmt(ChartAreaLeft)" y1="@Fmt(ChartAreaTop)"
-                          x2="@Fmt(ChartAreaLeft)" y2="@Fmt(ChartAreaBottom)"
+                    <line x1="@Fmt(_plot.Left)" y1="@Fmt(_plot.Top)"
+                          x2="@Fmt(_plot.Left)" y2="@Fmt(_plot.Bottom)"
                           class="axis-line" />
-                    <line x1="@Fmt(ChartAreaLeft)" y1="@Fmt(ChartAreaBottom)"
-                          x2="@Fmt(ChartAreaRight)" y2="@Fmt(ChartAreaBottom)"
+                    <line x1="@Fmt(_plot.Left)" y1="@Fmt(_plot.Bottom)"
+                          x2="@Fmt(_plot.Right)" y2="@Fmt(_plot.Bottom)"
                           class="axis-line" />
                 </g>
 
@@ -88,17 +86,17 @@
 
                             if (Horizontal)
                             {
-                                var x = ChartAreaLeft + fraction * ChartAreaWidth;
+                                var x = _plot.Left + fraction * _plot.Width;
                                 <SvgText X="@x"
-                                         Y="@(ChartAreaBottom + 20)"
+                                         Y="@(_plot.Bottom + 20)"
                                          CssClass="axis-label"
                                          TextAnchor="middle"
                                          Content="@value.ToString(ValueFormat, CultureInfo.InvariantCulture)" />
                             }
                             else
                             {
-                                var y = ChartAreaBottom - fraction * ChartAreaHeight;
-                                <SvgText X="@(ChartAreaLeft - 8)"
+                                var y = _plot.Bottom - fraction * _plot.Height;
+                                <SvgText X="@(_plot.Left - 8)"
                                          Y="@y"
                                          CssClass="axis-label"
                                          TextAnchor="end"
@@ -113,7 +111,7 @@
                         {
                             if (Horizontal)
                             {
-                                <SvgText X="@(ChartAreaLeft - 8)"
+                                <SvgText X="@(_plot.Left - 8)"
                                          Y="@(category.AxisLabelPoint.Y)"
                                          CssClass="axis-label"
                                          TextAnchor="end"
@@ -123,7 +121,7 @@
                             else
                             {
                                 <SvgText X="@(category.AxisLabelPoint.X)"
-                                         Y="@(ChartAreaBottom + 20)"
+                                         Y="@(_plot.Bottom + 20)"
                                          CssClass="axis-label"
                                          TextAnchor="middle"
                                          Content="@category.Label" />

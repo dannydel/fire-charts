@@ -11,8 +11,7 @@ public partial class FireBarChart<TItem> : ComponentBase
     private IReadOnlyList<BarChartPoint<TItem>> _points = Array.Empty<BarChartPoint<TItem>>();
     private int? _hoveredIndex;
     private int? _focusedIndex;
-    private double? _renderWidth;
-    private double? _renderHeight;
+    private PlotArea _plot;
     private double _computedMaxValue = 100;
 
     [Parameter] public string Title { get; set; } = "Bar Chart";
@@ -48,22 +47,14 @@ public partial class FireBarChart<TItem> : ComponentBase
     [Parameter] public double FontSize { get; set; } = 12;
     [Parameter] public double CornerRadius { get; set; } = 2;
 
-    private double PaddingTop => 10;
-    private double PaddingRight => 10;
-    private double PaddingBottom => ShowAxisLabels ? 40 : 10;
-    private double PaddingLeft => ShowAxisLabels ? (Horizontal ? 90 : 50) : 10;
+    private ChartPadding Padding => new(
+        Top: 10,
+        Right: 10,
+        Bottom: ShowAxisLabels ? 40 : 10,
+        Left: ShowAxisLabels ? (Horizontal ? 90 : 50) : 10);
 
     internal IReadOnlyList<BarChartPoint<TItem>> Points => _points;
     internal BarChartPoint<TItem>? HoveredPoint => _hoveredIndex is int index && index >= 0 && index < _points.Count ? _points[index] : null;
-
-    internal double SafeWidth => Math.Max(_renderWidth ?? Width, 1);
-    internal double SafeHeight => Math.Max(_renderHeight ?? Height, 1);
-    internal double ChartAreaLeft => PaddingLeft;
-    internal double ChartAreaTop => PaddingTop;
-    internal double ChartAreaRight => SafeWidth - PaddingRight;
-    internal double ChartAreaBottom => SafeHeight - PaddingBottom;
-    internal double ChartAreaWidth => Math.Max(ChartAreaRight - ChartAreaLeft, 1);
-    internal double ChartAreaHeight => Math.Max(ChartAreaBottom - ChartAreaTop, 1);
     internal int SafeGridLineCount => Math.Max(GridLineCount, 1);
     internal double SafeBarSpacing => Math.Clamp(BarSpacing, 0, 0.9);
 
@@ -76,8 +67,7 @@ public partial class FireBarChart<TItem> : ComponentBase
 
         Width = Math.Max(Width, 1);
         Height = Math.Max(Height, 1);
-        _renderWidth ??= Width;
-        _renderHeight ??= Height;
+        _plot = PlotArea.FromInset(Width, Height, Padding);
         RebuildPoints();
     }
 
@@ -105,18 +95,11 @@ public partial class FireBarChart<TItem> : ComponentBase
         }
     }
 
-    private void UpdateSurfaceSize(ChartSurfaceContext surface)
+    private Task OnPlotAreaChanged(PlotArea plot)
     {
-        var widthChanged = Math.Abs((_renderWidth ?? 0) - surface.Width) > 0.5;
-        var heightChanged = Math.Abs((_renderHeight ?? 0) - surface.Height) > 0.5;
-        if (!widthChanged && !heightChanged)
-        {
-            return;
-        }
-
-        _renderWidth = surface.Width;
-        _renderHeight = surface.Height;
+        _plot = plot;
         RebuildPoints();
+        return Task.CompletedTask;
     }
 
     private BarChartPoint<TItem> CreatePoint(TItem item, int index, bool isSelected, double computedMaxValue)
@@ -154,18 +137,18 @@ public partial class FireBarChart<TItem> : ComponentBase
 
         if (Horizontal)
         {
-            var step = ChartAreaHeight / itemCount;
+            var step = _plot.Height / itemCount;
             var barHeight = Math.Max(step * (1 - SafeBarSpacing), 1);
-            var y = ChartAreaTop + index * step + (step - barHeight) / 2;
-            var barWidth = Math.Max(scale * ChartAreaWidth, 0);
-            return new SvgRect(ChartAreaLeft, y, barWidth, barHeight);
+            var y = _plot.Top + index * step + (step - barHeight) / 2;
+            var barWidth = Math.Max(scale * _plot.Width, 0);
+            return new SvgRect(_plot.Left, y, barWidth, barHeight);
         }
 
-        var widthStep = ChartAreaWidth / itemCount;
+        var widthStep = _plot.Width / itemCount;
         var barWidthVertical = Math.Max(widthStep * (1 - SafeBarSpacing), 1);
-        var x = ChartAreaLeft + index * widthStep + (widthStep - barWidthVertical) / 2;
-        var barHeightVertical = Math.Max(scale * ChartAreaHeight, 0);
-        var barY = ChartAreaBottom - barHeightVertical;
+        var x = _plot.Left + index * widthStep + (widthStep - barWidthVertical) / 2;
+        var barHeightVertical = Math.Max(scale * _plot.Height, 0);
+        var barY = _plot.Bottom - barHeightVertical;
         return new SvgRect(x, barY, barWidthVertical, barHeightVertical);
     }
 

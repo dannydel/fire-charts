@@ -11,11 +11,10 @@
                   Height="@Height"
                   Responsive="@Responsive"
                   HostCssClass="fire-pie-chart-host"
-                  SvgCssClass="fire-pie-chart">
-        <ChildContent Context="surface">
-            @{
-                UpdateSurfaceSize(surface);
-            }
+                  SvgCssClass="fire-pie-chart"
+                  Padding="@Padding"
+                  OnPlotAreaChanged="OnPlotAreaChanged">
+        <ChildContent>
             @if (Points.Count == 0)
             {
                 @if (EmptyStateTemplate is not null)
@@ -24,8 +23,8 @@
                 }
                 else
                 {
-                    <SvgText X="@(surface.Width / 2)"
-                             Y="@(surface.Height / 2)"
+                    <SvgText X="@(_plot.SurfaceWidth / 2)"
+                             Y="@(_plot.SurfaceHeight / 2)"
                              TextAnchor="middle"
                              CssClass="empty-state"
                              Content="No data" />
