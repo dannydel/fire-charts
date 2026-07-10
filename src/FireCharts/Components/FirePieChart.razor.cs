@@ -21,8 +21,7 @@ public partial class FirePieChart<TItem> : ComponentBase
     private IReadOnlyList<PieChartPoint<TItem>> _points = Array.Empty<PieChartPoint<TItem>>();
     private int? _hoveredIndex;
     private int? _focusedIndex;
-    private double? _renderWidth;
-    private double? _renderHeight;
+    private PlotArea _plot;
 
     [Parameter] public string Title { get; set; } = "Pie Chart";
     [Parameter] public string Description { get; set; } = "";
@@ -56,12 +55,12 @@ public partial class FirePieChart<TItem> : ComponentBase
     [Parameter] public double ActiveOffset { get; set; } = 10;
     [Parameter] public string? CenterLabelTitle { get; set; }
 
+    private ChartPadding Padding => ChartPadding.Zero;
+
     internal IReadOnlyList<PieChartPoint<TItem>> Points => _points;
     internal PieChartPoint<TItem>? HoveredPoint => _hoveredIndex is int index && index >= 0 && index < _points.Count ? _points[index] : null;
-    internal double SafeWidth => Math.Max(_renderWidth ?? Width, 1);
-    internal double SafeHeight => Math.Max(_renderHeight ?? Height, 1);
-    internal SvgPoint Center => new(SafeWidth / 2, SafeHeight / 2);
-    internal double Radius => Math.Max(Math.Min(SafeWidth, SafeHeight) / 2 - 26, 40);
+    internal SvgPoint Center => _plot.Center;
+    internal double Radius => _plot.Radius(26, 40);
     internal double InnerRadius => Radius * Math.Clamp(InnerRadiusRatio, 0, 0.75);
     internal bool HasInnerHole => InnerRadius > 0;
     internal double CenterLabelOuterRadius => Math.Max(InnerRadius > 0 ? InnerRadius - 8 : Radius * 0.34, 34);
@@ -84,8 +83,7 @@ public partial class FirePieChart<TItem> : ComponentBase
 
         Width = Math.Max(Width, 1);
         Height = Math.Max(Height, 1);
-        _renderWidth ??= Width;
-        _renderHeight ??= Height;
+        _plot = PlotArea.FromInset(Width, Height, Padding);
         RebuildPoints();
     }
 
@@ -157,18 +155,11 @@ public partial class FirePieChart<TItem> : ComponentBase
         }
     }
 
-    private void UpdateSurfaceSize(ChartSurfaceContext surface)
+    private Task OnPlotAreaChanged(PlotArea plot)
     {
-        var widthChanged = Math.Abs((_renderWidth ?? 0) - surface.Width) > 0.5;
-        var heightChanged = Math.Abs((_renderHeight ?? 0) - surface.Height) > 0.5;
-        if (!widthChanged && !heightChanged)
-        {
-            return;
-        }
-
-        _renderWidth = surface.Width;
-        _renderHeight = surface.Height;
+        _plot = plot;
         RebuildPoints();
+        return Task.CompletedTask;
     }
 
     private string BuildSlicePath(double startAngle, double endAngle)

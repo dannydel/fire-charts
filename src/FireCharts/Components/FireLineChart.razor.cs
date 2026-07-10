@@ -61,8 +61,7 @@ public partial class FireLineChart<TItem> : ComponentBase
     private PointKey? _hoveredPointKey;
     private PointKey? _focusedPointKey;
     private int? _legendSeriesIndex;
-    private double? _renderWidth;
-    private double? _renderHeight;
+    private PlotArea _plot;
     private LineChartXValueKind _xAxisKind = LineChartXValueKind.Number;
 
     [Parameter] public string Title { get; set; } = "Line Chart";
@@ -101,23 +100,16 @@ public partial class FireLineChart<TItem> : ComponentBase
     [Parameter] public string FillColor { get; set; } = "#d94f3d";
     [Parameter] public string ValueFormat { get; set; } = "F0";
 
-    private double PaddingTop => 18;
-    private double PaddingRight => 18;
-    private double PaddingBottom => ShowAxisLabels ? 48 : 18;
-    private double PaddingLeft => ShowAxisLabels ? 64 : 18;
+    private ChartPadding Padding => new(
+        Top: 18,
+        Right: 18,
+        Bottom: ShowAxisLabels ? 48 : 18,
+        Left: ShowAxisLabels ? 64 : 18);
 
     private IReadOnlyList<RenderedSeries> SeriesStates => _seriesStates;
     private IReadOnlyList<AxisTick> XTicks => _xTicks;
     private IReadOnlyList<AxisTick> YTicks => _yTicks;
     private LineChartPoint<TItem>? HoveredPoint => FindPoint(_hoveredPointKey);
-    private double SafeWidth => Math.Max(_renderWidth ?? Width, 1);
-    private double SafeHeight => Math.Max(_renderHeight ?? Height, 1);
-    private double ChartAreaLeft => PaddingLeft;
-    private double ChartAreaTop => PaddingTop;
-    private double ChartAreaRight => SafeWidth - PaddingRight;
-    private double ChartAreaBottom => SafeHeight - PaddingBottom;
-    private double ChartAreaWidth => Math.Max(ChartAreaRight - ChartAreaLeft, 1);
-    private double ChartAreaHeight => Math.Max(ChartAreaBottom - ChartAreaTop, 1);
 
     private double SafeCurveTension => Math.Clamp(CurveTension, 0.1, 1);
     private double SafeStrokeWidth => Math.Clamp(StrokeWidth, 1.5, 8);
@@ -136,8 +128,7 @@ public partial class FireLineChart<TItem> : ComponentBase
 
         Width = Math.Max(Width, 1);
         Height = Math.Max(Height, 1);
-        _renderWidth ??= Width;
-        _renderHeight ??= Height;
+        _plot = PlotArea.FromInset(Width, Height, Padding);
 
         RebuildChart();
     }
@@ -158,7 +149,7 @@ public partial class FireLineChart<TItem> : ComponentBase
 
         var allPoints = rawSeries.SelectMany(series => series).ToList();
         var xDomain = GetXDomain(allPoints);
-        var yScale = AxisScale.FromValues(allPoints.Select(point => point.Y), SafeYAxisTickCount, ChartAreaBottom, ChartAreaTop);
+        var yScale = AxisScale.FromValues(allPoints.Select(point => point.Y), SafeYAxisTickCount, _plot.Bottom, _plot.Top);
         var baselineY = yScale.ToPixel(GetAreaBaselineValue(yScale.Min, yScale.Max));
 
         _xTicks = BuildXTicks(allPoints, xDomain.Min, xDomain.Max);
@@ -327,18 +318,11 @@ public partial class FireLineChart<TItem> : ComponentBase
         return rawSeries;
     }
 
-    private void UpdateSurfaceSize(ChartSurfaceContext surface)
+    private Task OnPlotAreaChanged(PlotArea plot)
     {
-        var widthChanged = Math.Abs((_renderWidth ?? 0) - surface.Width) > 0.5;
-        var heightChanged = Math.Abs((_renderHeight ?? 0) - surface.Height) > 0.5;
-        if (!widthChanged && !heightChanged)
-        {
-            return;
-        }
-
-        _renderWidth = surface.Width;
-        _renderHeight = surface.Height;
+        _plot = plot;
         RebuildChart();
+        return Task.CompletedTask;
     }
 
     private async Task HandleHoverAsync(LineChartPoint<TItem> point)
@@ -509,8 +493,8 @@ public partial class FireLineChart<TItem> : ComponentBase
 
         var scale = AxisScale.FromValues(
             new[] { min, max },
-            ChartAreaLeft,
-            ChartAreaRight,
+            _plot.Left,
+            _plot.Right,
             new AxisScaleOptions { TickCount = SafeXAxisTickCount, Baseline = AxisBaseline.DataExtent });
         return scale.Ticks
             .Select(tick => new AxisTick(tick.Value, FormatNumber(tick.Value), tick.Pixel))
@@ -607,7 +591,7 @@ public partial class FireLineChart<TItem> : ComponentBase
     private double MapX(double value, double min, double max)
     {
         var ratio = (value - min) / Math.Max(max - min, 0.000001);
-        return ChartAreaLeft + (Math.Clamp(ratio, 0, 1) * ChartAreaWidth);
+        return _plot.Left + (Math.Clamp(ratio, 0, 1) * _plot.Width);
     }
 
     private static double GetAreaBaselineValue(double min, double max)

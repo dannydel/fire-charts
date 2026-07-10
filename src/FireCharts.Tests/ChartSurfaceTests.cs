@@ -105,11 +105,11 @@ public sealed class ChartSurfaceTests : TestContext
             .Add(component => component.Responsive, responsive)
             .Add(component => component.HostCssClass, "test-host")
             .Add(component => component.SvgCssClass, "test-svg")
-            .Add(component => component.ChildContent, (RenderFragment<ChartSurfaceContext>)(context => builder =>
+            .Add(component => component.ChildContent, (RenderFragment<PlotArea>)(context => builder =>
             {
                 builder.OpenElement(0, "text");
                 builder.AddAttribute(1, "class", "child-metrics");
-                builder.AddContent(2, $"child-{context.Width:F1}x{context.Height:F1}");
+                builder.AddContent(2, $"child-{context.SurfaceWidth:F1}x{context.SurfaceHeight:F1}");
                 builder.CloseElement();
             }))
             .Add(component => component.OverlayContent, (RenderFragment)(builder =>

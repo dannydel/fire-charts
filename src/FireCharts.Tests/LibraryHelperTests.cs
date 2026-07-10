@@ -65,7 +65,7 @@ public sealed class LibraryHelperTests : TestContext
         var waterfallInteraction = new WaterfallChartPointInteraction<string>("Budget", 4, "Total", 25, 0, 135, 135, WaterfallStepType.Total);
         var lineInteraction = new LineChartPointInteraction<string>("Incidents", 1, "Series B", 2, "April", xValue, 8);
         var series = new LineChartSeries<string>("Series B", ["A", "B"], "#444444", "#555555", "#666666", "#777777", 3.5, 0.25);
-        var surface = new ChartSurfaceContext(640, 320);
+        var surface = PlotArea.FromInset(640, 320, ChartPadding.Zero);
 
         Assert.Equal((10d, 20d, 30d, 40d), (rect.X, rect.Y, rect.Width, rect.Height));
         Assert.Equal((12d, 24d), (point.X, point.Y));
